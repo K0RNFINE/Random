@@ -1,279 +1,350 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>3D Axis — B · V · F</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Orbitron:wght@400;700;900&display=swap');
 
-<title>3D Axis Viewer</title>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-<style>
-    body {
-        margin: 0;
-        overflow: hidden;
-        background: #050816;
-        font-family: Arial, sans-serif;
+    :root {
+      --bg: #07080d;
+      --grid: rgba(255,255,255,0.04);
+      --axis-b: #00f5d4;
+      --axis-v: #f72585;
+      --axis-f: #ffe066;
+      --text: #e8eaf0;
+      --dim: rgba(232,234,240,0.35);
     }
 
-    #info {
-        position: absolute;
-        top: 10px;
-        left: 10px;
-        color: white;
-        z-index: 10;
-        background: rgba(0,0,0,0.5);
-        padding: 10px;
-        border-radius: 10px;
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Share Tech Mono', monospace;
+      height: 100dvh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      user-select: none;
+      touch-action: none;
+    }
+
+    /* subtle grid bg */
+    body::before {
+      content: '';
+      position: fixed; inset: 0;
+      background-image:
+        linear-gradient(var(--grid) 1px, transparent 1px),
+        linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+      background-size: 48px 48px;
+      pointer-events: none;
+    }
+
+    h1 {
+      font-family: 'Orbitron', sans-serif;
+      font-weight: 900;
+      font-size: clamp(1rem, 3vw, 1.4rem);
+      letter-spacing: 0.25em;
+      text-transform: uppercase;
+      color: var(--text);
+      opacity: 0.85;
+      margin-bottom: 6px;
+    }
+
+    .subtitle {
+      font-size: 0.7rem;
+      letter-spacing: 0.15em;
+      color: var(--dim);
+      margin-bottom: 28px;
     }
 
     canvas {
-        display: block;
+      display: block;
+      cursor: grab;
+      border-radius: 4px;
     }
-</style>
+    canvas:active { cursor: grabbing; }
+
+    .legend {
+      display: flex;
+      gap: 28px;
+      margin-top: 24px;
+      font-size: 0.75rem;
+      letter-spacing: 0.12em;
+    }
+    .legend-item { display: flex; align-items: center; gap: 8px; }
+    .legend-dot {
+      width: 10px; height: 10px; border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    .hint {
+      margin-top: 14px;
+      font-size: 0.65rem;
+      color: var(--dim);
+      letter-spacing: 0.1em;
+    }
+  </style>
 </head>
 <body>
 
-<div id="info">
-    <h3>BVF Axis System</h3>
+  <h1>3D Axis Reference</h1>
+  <p class="subtitle">drag or touch to rotate</p>
 
-    <div>B = X Axis (Front / Back)</div>
-    <div>V = Y Axis (Left / Right)</div>
-    <div>F = Z Axis (Up / Down)</div>
+  <canvas id="c"></canvas>
 
-    <br>
+  <div class="legend">
+    <div class="legend-item">
+      <div class="legend-dot" style="background:var(--axis-b)"></div>
+      <span style="color:var(--axis-b)">B</span>&nbsp;<span style="color:var(--dim)">Front / Back</span>
+    </div>
+    <div class="legend-item">
+      <div class="legend-dot" style="background:var(--axis-v)"></div>
+      <span style="color:var(--axis-v)">V</span>&nbsp;<span style="color:var(--dim)">Left / Right</span>
+    </div>
+    <div class="legend-item">
+      <div class="legend-dot" style="background:var(--axis-f)"></div>
+      <span style="color:var(--axis-f)">F</span>&nbsp;<span style="color:var(--dim)">Up / Down</span>
+    </div>
+  </div>
+  <p class="hint">B = X axis &nbsp;·&nbsp; V = Y axis &nbsp;·&nbsp; F = Z axis</p>
 
-    <div>Drag = Rotate</div>
-    <div>Scroll = Zoom</div>
-</div>
+<script>
+(function () {
+  const canvas = document.getElementById('c');
+  const ctx = canvas.getContext('2d');
 
-<script type="module">
+  // ─── sizing ───────────────────────────────────────────────────────────────
+  function resize() {
+    const size = Math.min(window.innerWidth * 0.92, window.innerHeight * 0.55, 520);
+    canvas.width  = size;
+    canvas.height = size;
+  }
+  resize();
+  window.addEventListener('resize', () => { resize(); draw(); });
 
-import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.165.0/build/three.module.js';
+  // ─── rotation state ───────────────────────────────────────────────────────
+  let rotX =  0.42;   // tilt
+  let rotY = -0.62;   // spin
+  let dragging = false;
+  let lastX = 0, lastY = 0;
 
-import { OrbitControls }
-from 'https://cdn.jsdelivr.net/npm/three@0.165.0/examples/jsm/controls/OrbitControls.js';
+  // ─── drag (mouse) ─────────────────────────────────────────────────────────
+  canvas.addEventListener('mousedown', e => {
+    dragging = true; lastX = e.clientX; lastY = e.clientY;
+  });
+  window.addEventListener('mouseup',   () => dragging = false);
+  window.addEventListener('mousemove', e => {
+    if (!dragging) return;
+    rotY += (e.clientX - lastX) * 0.009;
+    rotX += (e.clientY - lastY) * 0.009;
+    lastX = e.clientX; lastY = e.clientY;
+    draw();
+  });
 
+  // ─── drag (touch) ─────────────────────────────────────────────────────────
+  canvas.addEventListener('touchstart', e => {
+    e.preventDefault();
+    const t = e.touches[0];
+    dragging = true; lastX = t.clientX; lastY = t.clientY;
+  }, { passive: false });
+  window.addEventListener('touchend',  () => dragging = false);
+  window.addEventListener('touchmove', e => {
+    if (!dragging) return;
+    e.preventDefault();
+    const t = e.touches[0];
+    rotY += (t.clientX - lastX) * 0.009;
+    rotX += (t.clientY - lastY) * 0.009;
+    lastX = t.clientX; lastY = t.clientY;
+    draw();
+  }, { passive: false });
 
-// ============================
-// Scene
-// ============================
+  // ─── auto-spin when idle ──────────────────────────────────────────────────
+  let idleTimer = null;
+  let spinning  = false;
 
-const scene = new THREE.Scene();
+  function resetIdle() {
+    spinning = false;
+    clearTimeout(idleTimer);
+    idleTimer = setTimeout(() => { spinning = true; spin(); }, 2800);
+  }
+  canvas.addEventListener('mousedown', resetIdle);
+  canvas.addEventListener('touchstart', resetIdle);
+  resetIdle();
 
-scene.background = new THREE.Color(0x050816);
+  function spin() {
+    if (!spinning) return;
+    rotY += 0.006;
+    draw();
+    requestAnimationFrame(spin);
+  }
 
+  // ─── 3D math ──────────────────────────────────────────────────────────────
+  function rotateXY([x, y, z]) {
+    // rotate around X axis
+    const cosX = Math.cos(rotX), sinX = Math.sin(rotX);
+    const y1 = y * cosX - z * sinX;
+    const z1 = y * sinX + z * cosX;
+    // rotate around Y axis
+    const cosY = Math.cos(rotY), sinY = Math.sin(rotY);
+    const x2 = x * cosY + z1 * sinY;
+    const z2 = -x * sinY + z1 * cosY;
+    return [x2, y1, z2];
+  }
 
-// ============================
-// Camera
-// ============================
+  function project([x, y, z]) {
+    const fov = 3.8;
+    const s = canvas.width / 2;
+    const scale = s * fov / (fov + z + 2);
+    return [s + x * scale, s + y * scale, z];
+  }
 
-const camera = new THREE.PerspectiveCamera(
-    75,
-    window.innerWidth / window.innerHeight,
-    0.1,
-    1000
-);
+  // ─── drawing helpers ──────────────────────────────────────────────────────
+  const COLORS = {
+    B: getComputedStyle(document.documentElement).getPropertyValue('--axis-b').trim() || '#00f5d4',
+    V: getComputedStyle(document.documentElement).getPropertyValue('--axis-v').trim() || '#f72585',
+    F: getComputedStyle(document.documentElement).getPropertyValue('--axis-f').trim() || '#ffe066',
+  };
 
-camera.position.set(5, 5, 5);
+  function drawLine(a, b, color, dash = []) {
+    const [ax, ay] = project(rotateXY(a));
+    const [bx, by] = project(rotateXY(b));
+    ctx.save();
+    ctx.beginPath();
+    ctx.setLineDash(dash);
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 2.2;
+    ctx.moveTo(ax, ay);
+    ctx.lineTo(bx, by);
+    ctx.stroke();
+    ctx.restore();
+  }
 
+  function drawArrow(from, to, color) {
+    const [fx, fy] = project(rotateXY(from));
+    const [tx, ty] = project(rotateXY(to));
+    ctx.save();
+    ctx.strokeStyle = color;
+    ctx.fillStyle   = color;
+    ctx.lineWidth   = 2.6;
+    ctx.beginPath();
+    ctx.moveTo(fx, fy);
+    ctx.lineTo(tx, ty);
+    ctx.stroke();
+    // arrowhead
+    const angle = Math.atan2(ty - fy, tx - fx);
+    const hw = 9, hl = 16;
+    ctx.beginPath();
+    ctx.moveTo(tx, ty);
+    ctx.lineTo(tx - hl * Math.cos(angle - 0.38), ty - hl * Math.sin(angle - 0.38));
+    ctx.lineTo(tx - hl * Math.cos(angle + 0.38), ty - hl * Math.sin(angle + 0.38));
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+  }
 
-// ============================
-// Renderer
-// ============================
-
-const renderer = new THREE.WebGLRenderer({
-    antialias: true
-});
-
-renderer.setSize(
-    window.innerWidth,
-    window.innerHeight
-);
-
-document.body.appendChild(renderer.domElement);
-
-
-// ============================
-// Controls
-// ============================
-
-const controls = new OrbitControls(
-    camera,
-    renderer.domElement
-);
-
-controls.enableDamping = true;
-
-
-// ============================
-// Grid
-// ============================
-
-const grid = new THREE.GridHelper(
-    20,
-    20,
-    0x444444,
-    0x222222
-);
-
-scene.add(grid);
-
-
-// ============================
-// Axis Lines
-// ============================
-
-function createAxis(direction, color)
-{
-    const material =
-        new THREE.LineBasicMaterial({
-            color: color
-        });
-
-    const points = [];
-
-    points.push(
-        new THREE.Vector3(0,0,0)
-    );
-
-    points.push(direction);
-
-    const geometry =
-        new THREE.BufferGeometry()
-        .setFromPoints(points);
-
-    return new THREE.Line(
-        geometry,
-        material
-    );
-}
-
-
-// X Axis = B
-const xAxis = createAxis(
-    new THREE.Vector3(5,0,0),
-    0xff4444
-);
-
-scene.add(xAxis);
-
-
-// Y Axis = V
-const yAxis = createAxis(
-    new THREE.Vector3(0,5,0),
-    0x44ff44
-);
-
-scene.add(yAxis);
-
-
-// Z Axis = F
-const zAxis = createAxis(
-    new THREE.Vector3(0,0,5),
-    0x4488ff
-);
-
-scene.add(zAxis);
-
-
-// ============================
-// Text Labels
-// ============================
-
-function createLabel(text, color)
-{
-    const canvas =
-        document.createElement('canvas');
-
-    canvas.width = 256;
-    canvas.height = 256;
-
-    const ctx =
-        canvas.getContext('2d');
-
+  function drawLabel(pos, text, color, offsetX = 0, offsetY = 0) {
+    const [px, py, pz] = project(rotateXY(pos));
+    const size = canvas.width * 0.065;
+    ctx.save();
+    ctx.font = `900 ${size}px 'Orbitron', sans-serif`;
     ctx.fillStyle = color;
-    ctx.font = 'bold 120px Arial';
-    ctx.textAlign = 'center';
+    ctx.textAlign  = 'center';
     ctx.textBaseline = 'middle';
+    // glow
+    ctx.shadowColor = color;
+    ctx.shadowBlur  = 18;
+    ctx.fillText(text, px + offsetX, py + offsetY);
+    ctx.restore();
+  }
 
-    ctx.fillText(text, 128, 128);
+  function drawDot(pos, color, r = 5) {
+    const [px, py] = project(rotateXY(pos));
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(px, py, r, 0, Math.PI * 2);
+    ctx.fillStyle = color;
+    ctx.shadowColor = color;
+    ctx.shadowBlur = 12;
+    ctx.fill();
+    ctx.restore();
+  }
 
-    const texture =
-        new THREE.CanvasTexture(canvas);
-
-    const material =
-        new THREE.SpriteMaterial({
-            map: texture,
-            transparent: true
-        });
-
-    const sprite =
-        new THREE.Sprite(material);
-
-    sprite.scale.set(1.5,1.5,1.5);
-
-    return sprite;
-}
-
-
-// B label
-const labelB = createLabel("B", "#ff4444");
-labelB.position.set(5.5,0,0);
-scene.add(labelB);
-
-
-// V label
-const labelV = createLabel("V", "#44ff44");
-labelV.position.set(0,5.5,0);
-scene.add(labelV);
-
-
-// F label
-const labelF = createLabel("F", "#4488ff");
-labelF.position.set(0,0,5.5);
-scene.add(labelF);
-
-
-// ============================
-// Animation
-// ============================
-
-function animate()
-{
-    requestAnimationFrame(animate);
-
-    controls.update();
-
-    renderer.render(
-        scene,
-        camera
-    );
-}
-
-animate();
-
-
-// ============================
-// Resize
-// ============================
-
-window.addEventListener(
-    'resize',
-    () =>
-    {
-        camera.aspect =
-            window.innerWidth /
-            window.innerHeight;
-
-        camera.updateProjectionMatrix();
-
-        renderer.setSize(
-            window.innerWidth,
-            window.innerHeight
-        );
+  // ─── grid plane ───────────────────────────────────────────────────────────
+  function drawGrid() {
+    const N = 4, step = 0.25;
+    for (let i = -N; i <= N; i++) {
+      const t = i * step;
+      // lines along B axis (x)
+      drawLine([-1, t, 0], [1, t, 0], 'rgba(255,255,255,0.07)');
+      // lines along V axis (y)
+      drawLine([t, -1, 0], [t, 1, 0], 'rgba(255,255,255,0.07)');
     }
-);
+  }
 
+  // ─── full scene ───────────────────────────────────────────────────────────
+  const L = 0.9;  // axis half-length
+  const LA = 1.05; // arrow tip
+
+  function draw() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    // origin glow
+    const [ox, oy] = project(rotateXY([0, 0, 0]));
+    const g = ctx.createRadialGradient(ox, oy, 0, ox, oy, canvas.width * 0.18);
+    g.addColorStop(0, 'rgba(255,255,255,0.06)');
+    g.addColorStop(1, 'transparent');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    drawGrid();
+
+    // negative (dashed) halves
+    drawLine([0,0,0], [-L, 0, 0], COLORS.B + '55', [6, 5]);
+    drawLine([0,0,0], [ 0,-L, 0], COLORS.V + '55', [6, 5]);
+    drawLine([0,0,0], [ 0, 0,-L], COLORS.F + '55', [6, 5]);
+
+    // solid positive axes with arrows
+    drawArrow([0,0,0], [LA, 0,  0 ], COLORS.B); // B → front (X+)
+    drawArrow([0,0,0], [ 0, LA, 0 ], COLORS.V); // V → right (Y+)
+    drawArrow([0,0,0], [ 0, 0,  LA], COLORS.F); // F → up    (Z+)
+
+    // labels at tips
+    drawLabel([LA + 0.18, 0, 0],      'B', COLORS.B);
+    drawLabel([0, LA + 0.18, 0],      'V', COLORS.V);
+    drawLabel([0, 0, LA + 0.18],      'F', COLORS.F);
+
+    // small labels at negative ends
+    const sm = canvas.width * 0.032;
+    const negLabelStyle = (color) => {
+      ctx.font = `700 ${sm}px 'Share Tech Mono', monospace`;
+      ctx.fillStyle = color + '99';
+      ctx.shadowColor = color;
+      ctx.shadowBlur = 6;
+    };
+
+    function negLabel(pos, text, color) {
+      const [px, py] = project(rotateXY(pos));
+      ctx.save();
+      negLabelStyle(color);
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText(text, px, py);
+      ctx.restore();
+    }
+    negLabel([-L - 0.14, 0, 0], '-B', COLORS.B);
+    negLabel([0, -L - 0.14, 0], '-V', COLORS.V);
+    negLabel([0, 0, -L - 0.14], '-F', COLORS.F);
+
+    // origin dot
+    drawDot([0,0,0], '#ffffff', 5);
+  }
+
+  draw();
+})();
 </script>
-
 </body>
 </html>
