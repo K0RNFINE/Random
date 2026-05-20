@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+
+<title>3D Axis Viewer</title>
+
+<style>
+    body {
+        margin: 0;
+        overflow: hidden;
+        background: #050816;
+        font-family: Arial, sans-serif;
+    }
+
+    #info {
+        position: absolute;
+        top: 10px;
+        left: 10px;
+        color: white;
+        z-index: 10;
+        background: rgba(0,0,0,0.5);
+        padding: 10px;
+        border-radius: 10px;
+    }
+
+    canvas {
+        display: block;
+    }
+</style>
+</head>
+<body>
+
+<div id="info">
+    <h3>BVF Axis System</h3>
+
+    <div>B = X Axis (Front / Back)</div>
+    <div>V = Y Axis (Left / Right)</div>
+    <div>F = Z Axis (Up / Down)</div>
+
+    <br>
+
+    <div>Drag = Rotate</div>
+    <div>Scroll = Zoom</div>
+</div>
+
+<script type="module">
+
+import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.165.0/build/three.module.js';
+
+import { OrbitControls }
+from 'https://cdn.jsdelivr.net/npm/three@0.165.0/examples/jsm/controls/OrbitControls.js';
+
+
+// ============================
+// Scene
+// ============================
+
+const scene = new THREE.Scene();
+
+scene.background = new THREE.Color(0x050816);
+
+
+// ============================
+// Camera
+// ============================
+
+const camera = new THREE.PerspectiveCamera(
+    75,
+    window.innerWidth / window.innerHeight,
+    0.1,
+    1000
+);
+
+camera.position.set(5, 5, 5);
+
+
+// ============================
+// Renderer
+// ============================
+
+const renderer = new THREE.WebGLRenderer({
+    antialias: true
+});
+
+renderer.setSize(
+    window.innerWidth,
+    window.innerHeight
+);
+
+document.body.appendChild(renderer.domElement);
+
+
+// ============================
+// Controls
+// ============================
+
+const controls = new OrbitControls(
+    camera,
+    renderer.domElement
+);
+
+controls.enableDamping = true;
+
+
+// ============================
+// Grid
+// ============================
+
+const grid = new THREE.GridHelper(
+    20,
+    20,
+    0x444444,
+    0x222222
+);
+
+scene.add(grid);
+
+
+// ============================
+// Axis Lines
+// ============================
+
+function createAxis(direction, color)
+{
+    const material =
+        new THREE.LineBasicMaterial({
+            color: color
+        });
+
+    const points = [];
+
+    points.push(
+        new THREE.Vector3(0,0,0)
+    );
+
+    points.push(direction);
+
+    const geometry =
+        new THREE.BufferGeometry()
+        .setFromPoints(points);
+
+    return new THREE.Line(
+        geometry,
+        material
+    );
+}
+
+
+// X Axis = B
+const xAxis = createAxis(
+    new THREE.Vector3(5,0,0),
+    0xff4444
+);
+
+scene.add(xAxis);
+
+
+// Y Axis = V
+const yAxis = createAxis(
+    new THREE.Vector3(0,5,0),
+    0x44ff44
+);
+
+scene.add(yAxis);
+
+
+// Z Axis = F
+const zAxis = createAxis(
+    new THREE.Vector3(0,0,5),
+    0x4488ff
+);
+
+scene.add(zAxis);
+
+
+// ============================
+// Text Labels
+// ============================
+
+function createLabel(text, color)
+{
+    const canvas =
+        document.createElement('canvas');
+
+    canvas.width = 256;
+    canvas.height = 256;
+
+    const ctx =
+        canvas.getContext('2d');
+
+    ctx.fillStyle = color;
+    ctx.font = 'bold 120px Arial';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+
+    ctx.fillText(text, 128, 128);
+
+    const texture =
+        new THREE.CanvasTexture(canvas);
+
+    const material =
+        new THREE.SpriteMaterial({
+            map: texture,
+            transparent: true
+        });
+
+    const sprite =
+        new THREE.Sprite(material);
+
+    sprite.scale.set(1.5,1.5,1.5);
+
+    return sprite;
+}
+
+
+// B label
+const labelB = createLabel("B", "#ff4444");
+labelB.position.set(5.5,0,0);
+scene.add(labelB);
+
+
+// V label
+const labelV = createLabel("V", "#44ff44");
+labelV.position.set(0,5.5,0);
+scene.add(labelV);
+
+
+// F label
+const labelF = createLabel("F", "#4488ff");
+labelF.position.set(0,0,5.5);
+scene.add(labelF);
+
+
+// ============================
+// Animation
+// ============================
+
+function animate()
+{
+    requestAnimationFrame(animate);
+
+    controls.update();
+
+    renderer.render(
+        scene,
+        camera
+    );
+}
+
+animate();
+
+
+// ============================
+// Resize
+// ============================
+
+window.addEventListener(
+    'resize',
+    () =>
+    {
+        camera.aspect =
+            window.innerWidth /
+            window.innerHeight;
+
+        camera.updateProjectionMatrix();
+
+        renderer.setSize(
+            window.innerWidth,
+            window.innerHeight
+        );
+    }
+);
+
+</script>
+
+</body>
+</html>
