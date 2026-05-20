@@ -33,7 +33,6 @@
       touch-action: none;
     }
 
-    /* subtle grid bg */
     body::before {
       content: '';
       position: fixed; inset: 0;
@@ -59,7 +58,7 @@
       font-size: 0.7rem;
       letter-spacing: 0.15em;
       color: var(--dim);
-      margin-bottom: 28px;
+      margin-bottom: 16px;
     }
 
     canvas {
@@ -69,22 +68,59 @@
     }
     canvas:active { cursor: grabbing; }
 
-    .legend {
+    /* ── charge toggle ── */
+    .charge-row {
       display: flex;
-      gap: 28px;
-      margin-top: 24px;
-      font-size: 0.75rem;
-      letter-spacing: 0.12em;
+      align-items: center;
+      gap: 10px;
+      margin-top: 16px;
     }
-    .legend-item { display: flex; align-items: center; gap: 8px; }
-    .legend-dot {
-      width: 10px; height: 10px; border-radius: 50%;
-      flex-shrink: 0;
+    .charge-label {
+      font-size: 0.7rem;
+      letter-spacing: 0.12em;
+      color: var(--dim);
+    }
+    .toggle-wrap {
+      display: flex;
+      background: rgba(255,255,255,0.06);
+      border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 6px;
+      overflow: hidden;
+    }
+    .toggle-btn {
+      padding: 5px 18px;
+      font-family: 'Orbitron', sans-serif;
+      font-size: 0.78rem;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      cursor: pointer;
+      border: none;
+      background: transparent;
+      color: var(--dim);
+      transition: background 0.2s, color 0.2s;
+    }
+    .toggle-btn.active-pos {
+      background: rgba(0,245,212,0.18);
+      color: var(--axis-b);
+    }
+    .toggle-btn.active-neg {
+      background: rgba(247,37,133,0.18);
+      color: var(--axis-v);
     }
 
-    .hint {
+    .legend {
+      display: flex;
+      gap: 22px;
       margin-top: 14px;
-      font-size: 0.65rem;
+      font-size: 0.72rem;
+      letter-spacing: 0.11em;
+    }
+    .legend-item { display: flex; align-items: center; gap: 7px; }
+    .legend-dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+
+    .hint {
+      margin-top: 10px;
+      font-size: 0.62rem;
       color: var(--dim);
       letter-spacing: 0.1em;
     }
@@ -93,254 +129,341 @@
 <body>
 
   <h1>3D Axis Reference</h1>
-  <p class="subtitle">drag or touch to rotate</p>
+  <p class="subtitle">drag / touch to rotate freely</p>
 
   <canvas id="c"></canvas>
+
+  <div class="charge-row">
+    <span class="charge-label">CHARGE:</span>
+    <div class="toggle-wrap">
+      <button class="toggle-btn" id="btn-pos">＋</button>
+      <button class="toggle-btn active-neg" id="btn-neg">－</button>
+    </div>
+  </div>
 
   <div class="legend">
     <div class="legend-item">
       <div class="legend-dot" style="background:var(--axis-b)"></div>
-      <span style="color:var(--axis-b)">B</span>&nbsp;<span style="color:var(--dim)">Front / Back</span>
+      <span style="color:var(--axis-b)">B</span>&nbsp;<span style="color:var(--dim)">Front/Back</span>
     </div>
     <div class="legend-item">
       <div class="legend-dot" style="background:var(--axis-v)"></div>
-      <span style="color:var(--axis-v)">V</span>&nbsp;<span style="color:var(--dim)">Left / Right</span>
+      <span style="color:var(--axis-v)">V</span>&nbsp;<span style="color:var(--dim)">Left/Right</span>
     </div>
     <div class="legend-item">
       <div class="legend-dot" style="background:var(--axis-f)"></div>
-      <span style="color:var(--axis-f)">F</span>&nbsp;<span style="color:var(--dim)">Up / Down</span>
+      <span style="color:var(--axis-f)">F</span>&nbsp;<span style="color:var(--dim)">Up/Down</span>
     </div>
   </div>
-  <p class="hint">B = X axis &nbsp;·&nbsp; V = Y axis &nbsp;·&nbsp; F = Z axis</p>
+  <p class="hint">B = X &nbsp;·&nbsp; V = Y &nbsp;·&nbsp; F = Z &nbsp;·&nbsp; + charge inverts F</p>
 
 <script>
 (function () {
   const canvas = document.getElementById('c');
-  const ctx = canvas.getContext('2d');
+  const ctx    = canvas.getContext('2d');
 
-  // ─── sizing ───────────────────────────────────────────────────────────────
+  // ── charge state ──────────────────────────────────────────────────────────
+  let chargePos = false; // false = negative (default), true = positive
+
+  document.getElementById('btn-pos').addEventListener('click', () => {
+    chargePos = true;
+    document.getElementById('btn-pos').className = 'toggle-btn active-pos';
+    document.getElementById('btn-neg').className = 'toggle-btn';
+    draw();
+  });
+  document.getElementById('btn-neg').addEventListener('click', () => {
+    chargePos = false;
+    document.getElementById('btn-neg').className = 'toggle-btn active-neg';
+    document.getElementById('btn-pos').className = 'toggle-btn';
+    draw();
+  });
+
+  // ── sizing ────────────────────────────────────────────────────────────────
   function resize() {
-    const size = Math.min(window.innerWidth * 0.92, window.innerHeight * 0.55, 520);
+    const size = Math.min(window.innerWidth * 0.92, window.innerHeight * 0.48, 500);
     canvas.width  = size;
     canvas.height = size;
   }
   resize();
   window.addEventListener('resize', () => { resize(); draw(); });
 
-  // ─── rotation state ───────────────────────────────────────────────────────
-  let rotX =  0.42;   // tilt
-  let rotY = -0.62;   // spin
-  let dragging = false;
-  let lastX = 0, lastY = 0;
+  // ── trackball rotation (quaternion-based, full 3-DOF) ─────────────────────
+  // Stores orientation as a 4-element quaternion [w, x, y, z]
+  let quat = [1, 0, 0, 0];
 
-  // ─── drag (mouse) ─────────────────────────────────────────────────────────
+  function qMul([w1,x1,y1,z1], [w2,x2,y2,z2]) {
+    return [
+      w1*w2 - x1*x2 - y1*y2 - z1*z2,
+      w1*x2 + x1*w2 + y1*z2 - z1*y2,
+      w1*y2 - x1*z2 + y1*w2 + z1*x2,
+      w1*z2 + x1*y2 - y1*x2 + z1*w2,
+    ];
+  }
+
+  function qNorm([w,x,y,z]) {
+    const l = Math.sqrt(w*w+x*x+y*y+z*z) || 1;
+    return [w/l, x/l, y/l, z/l];
+  }
+
+  // rotate 3D point by quaternion
+  function qRotate([w,x,y,z], [px,py,pz]) {
+    // p' = q * p * q^-1
+    const qc = [w,-x,-y,-z];
+    const pq = [0, px, py, pz];
+    const [,rx,ry,rz] = qMul(qMul([w,x,y,z], pq), qc);
+    return [rx, ry, rz];
+  }
+
+  // Build a rotation quaternion from axis (ax,ay,az) and angle
+  function axisAngleQuat(ax, ay, az, angle) {
+    const s = Math.sin(angle / 2);
+    return [Math.cos(angle / 2), ax*s, ay*s, az*s];
+  }
+
+  // Convert canvas drag delta to trackball rotation
+  // dx = horizontal drag → rotate around world Y (screen up axis)
+  // dy = vertical drag   → rotate around world X (screen right axis)
+  function applyDrag(dx, dy) {
+    const size  = canvas.width;
+    const speed = 2.5 / size;
+    const angleX = dy * speed;  // tilt up/down
+    const angleY = dx * speed;  // spin left/right
+
+    // World-space axes for screen horizontal/vertical
+    const qY = axisAngleQuat(0, 1, 0, angleY); // spin around world Y
+    const qX = axisAngleQuat(1, 0, 0, angleX); // tilt around world X
+    quat = qNorm(qMul(qMul(qY, qX), quat));
+  }
+
+  // ── drag (mouse) ──────────────────────────────────────────────────────────
+  let dragging = false, lastX = 0, lastY = 0;
+
   canvas.addEventListener('mousedown', e => {
     dragging = true; lastX = e.clientX; lastY = e.clientY;
+    resetIdle();
   });
-  window.addEventListener('mouseup',   () => dragging = false);
+  window.addEventListener('mouseup', () => dragging = false);
   window.addEventListener('mousemove', e => {
     if (!dragging) return;
-    rotY += (e.clientX - lastX) * 0.009;
-    rotX += (e.clientY - lastY) * 0.009;
+    applyDrag(e.clientX - lastX, e.clientY - lastY);
     lastX = e.clientX; lastY = e.clientY;
     draw();
   });
 
-  // ─── drag (touch) ─────────────────────────────────────────────────────────
+  // ── drag (touch) ──────────────────────────────────────────────────────────
   canvas.addEventListener('touchstart', e => {
     e.preventDefault();
     const t = e.touches[0];
     dragging = true; lastX = t.clientX; lastY = t.clientY;
+    resetIdle();
   }, { passive: false });
-  window.addEventListener('touchend',  () => dragging = false);
+  window.addEventListener('touchend', () => dragging = false);
   window.addEventListener('touchmove', e => {
     if (!dragging) return;
     e.preventDefault();
     const t = e.touches[0];
-    rotY += (t.clientX - lastX) * 0.009;
-    rotX += (t.clientY - lastY) * 0.009;
+    applyDrag(t.clientX - lastX, t.clientY - lastY);
     lastX = t.clientX; lastY = t.clientY;
     draw();
   }, { passive: false });
 
-  // ─── auto-spin when idle ──────────────────────────────────────────────────
-  let idleTimer = null;
-  let spinning  = false;
-
+  // ── auto-spin ─────────────────────────────────────────────────────────────
+  let idleTimer = null, spinning = false;
   function resetIdle() {
     spinning = false;
     clearTimeout(idleTimer);
-    idleTimer = setTimeout(() => { spinning = true; spin(); }, 2800);
+    idleTimer = setTimeout(() => { spinning = true; spin(); }, 3000);
   }
-  canvas.addEventListener('mousedown', resetIdle);
-  canvas.addEventListener('touchstart', resetIdle);
-  resetIdle();
-
   function spin() {
     if (!spinning) return;
-    rotY += 0.006;
+    applyDrag(1.2, 0);
     draw();
     requestAnimationFrame(spin);
   }
+  resetIdle();
 
-  // ─── 3D math ──────────────────────────────────────────────────────────────
-  function rotateXY([x, y, z]) {
-    // rotate around X axis
-    const cosX = Math.cos(rotX), sinX = Math.sin(rotX);
-    const y1 = y * cosX - z * sinX;
-    const z1 = y * sinX + z * cosX;
-    // rotate around Y axis
-    const cosY = Math.cos(rotY), sinY = Math.sin(rotY);
-    const x2 = x * cosY + z1 * sinY;
-    const z2 = -x * sinY + z1 * cosY;
-    return [x2, y1, z2];
+  // ── project 3D → 2D ───────────────────────────────────────────────────────
+  function transform(p3) {
+    const [rx, ry, rz] = qRotate(quat, p3);
+    const fov   = 3.8;
+    const s     = canvas.width / 2;
+    const scale = s * fov / (fov + rz + 2);
+    return [s + rx * scale, s + ry * scale, rz];
   }
 
-  function project([x, y, z]) {
-    const fov = 3.8;
-    const s = canvas.width / 2;
-    const scale = s * fov / (fov + z + 2);
-    return [s + x * scale, s + y * scale, z];
-  }
+  // ── colours ───────────────────────────────────────────────────────────────
+  const COLORS = { B:'#00f5d4', V:'#f72585', F:'#ffe066' };
 
-  // ─── drawing helpers ──────────────────────────────────────────────────────
-  const COLORS = {
-    B: getComputedStyle(document.documentElement).getPropertyValue('--axis-b').trim() || '#00f5d4',
-    V: getComputedStyle(document.documentElement).getPropertyValue('--axis-v').trim() || '#f72585',
-    F: getComputedStyle(document.documentElement).getPropertyValue('--axis-f').trim() || '#ffe066',
-  };
-
-  function drawLine(a, b, color, dash = []) {
-    const [ax, ay] = project(rotateXY(a));
-    const [bx, by] = project(rotateXY(b));
+  // ── draw helpers ──────────────────────────────────────────────────────────
+  function line(a, b, color, dash=[]) {
+    const [ax,ay] = transform(a), [bx,by] = transform(b);
     ctx.save();
-    ctx.beginPath();
-    ctx.setLineDash(dash);
-    ctx.strokeStyle = color;
-    ctx.lineWidth = 2.2;
-    ctx.moveTo(ax, ay);
-    ctx.lineTo(bx, by);
-    ctx.stroke();
+    ctx.beginPath(); ctx.setLineDash(dash);
+    ctx.strokeStyle = color; ctx.lineWidth = 2.2;
+    ctx.moveTo(ax,ay); ctx.lineTo(bx,by); ctx.stroke();
     ctx.restore();
   }
 
-  function drawArrow(from, to, color) {
-    const [fx, fy] = project(rotateXY(from));
-    const [tx, ty] = project(rotateXY(to));
+  function arrow(from, to, color) {
+    const [fx,fy] = transform(from), [tx,ty] = transform(to);
     ctx.save();
-    ctx.strokeStyle = color;
-    ctx.fillStyle   = color;
-    ctx.lineWidth   = 2.6;
+    ctx.strokeStyle = color; ctx.fillStyle = color; ctx.lineWidth = 2.6;
+    ctx.shadowColor = color; ctx.shadowBlur = 8;
+    ctx.beginPath(); ctx.moveTo(fx,fy); ctx.lineTo(tx,ty); ctx.stroke();
+    const a = Math.atan2(ty-fy, tx-fx), hl = 16;
     ctx.beginPath();
-    ctx.moveTo(fx, fy);
-    ctx.lineTo(tx, ty);
-    ctx.stroke();
-    // arrowhead
-    const angle = Math.atan2(ty - fy, tx - fx);
-    const hw = 9, hl = 16;
-    ctx.beginPath();
-    ctx.moveTo(tx, ty);
-    ctx.lineTo(tx - hl * Math.cos(angle - 0.38), ty - hl * Math.sin(angle - 0.38));
-    ctx.lineTo(tx - hl * Math.cos(angle + 0.38), ty - hl * Math.sin(angle + 0.38));
-    ctx.closePath();
-    ctx.fill();
+    ctx.moveTo(tx,ty);
+    ctx.lineTo(tx - hl*Math.cos(a-0.38), ty - hl*Math.sin(a-0.38));
+    ctx.lineTo(tx - hl*Math.cos(a+0.38), ty - hl*Math.sin(a+0.38));
+    ctx.closePath(); ctx.fill();
     ctx.restore();
   }
 
-  function drawLabel(pos, text, color, offsetX = 0, offsetY = 0) {
-    const [px, py, pz] = project(rotateXY(pos));
+  function label(pos, text, color) {
+    const [px,py] = transform(pos);
     const size = canvas.width * 0.065;
     ctx.save();
     ctx.font = `900 ${size}px 'Orbitron', sans-serif`;
-    ctx.fillStyle = color;
-    ctx.textAlign  = 'center';
-    ctx.textBaseline = 'middle';
-    // glow
-    ctx.shadowColor = color;
-    ctx.shadowBlur  = 18;
-    ctx.fillText(text, px + offsetX, py + offsetY);
+    ctx.fillStyle = color; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.shadowColor = color; ctx.shadowBlur = 20;
+    ctx.fillText(text, px, py);
     ctx.restore();
   }
 
-  function drawDot(pos, color, r = 5) {
-    const [px, py] = project(rotateXY(pos));
+  function smallLabel(pos, text, color) {
+    const [px,py] = transform(pos);
+    const size = canvas.width * 0.030;
     ctx.save();
-    ctx.beginPath();
-    ctx.arc(px, py, r, 0, Math.PI * 2);
-    ctx.fillStyle = color;
-    ctx.shadowColor = color;
-    ctx.shadowBlur = 12;
-    ctx.fill();
+    ctx.font = `700 ${size}px 'Share Tech Mono', monospace`;
+    ctx.fillStyle = color + '99'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.shadowColor = color; ctx.shadowBlur = 6;
+    ctx.fillText(text, px, py);
     ctx.restore();
   }
 
-  // ─── grid plane ───────────────────────────────────────────────────────────
-  function drawGrid() {
-    const N = 4, step = 0.25;
-    for (let i = -N; i <= N; i++) {
-      const t = i * step;
-      // lines along B axis (x)
-      drawLine([-1, t, 0], [1, t, 0], 'rgba(255,255,255,0.07)');
-      // lines along V axis (y)
-      drawLine([t, -1, 0], [t, 1, 0], 'rgba(255,255,255,0.07)');
-    }
+  function dot(pos, color, r=5) {
+    const [px,py] = transform(pos);
+    ctx.save();
+    ctx.beginPath(); ctx.arc(px,py,r,0,Math.PI*2);
+    ctx.fillStyle = color; ctx.shadowColor = color; ctx.shadowBlur = 12;
+    ctx.fill(); ctx.restore();
   }
 
-  // ─── full scene ───────────────────────────────────────────────────────────
-  const L = 0.9;  // axis half-length
-  const LA = 1.05; // arrow tip
+  // ── main draw ─────────────────────────────────────────────────────────────
+  const L = 0.9, LA = 1.05;
 
   function draw() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
+    // F sign: +charge inverts F axis
+    const Fs = chargePos ? -1 : 1;  // 1 = normal, -1 = inverted
+
     // origin glow
-    const [ox, oy] = project(rotateXY([0, 0, 0]));
-    const g = ctx.createRadialGradient(ox, oy, 0, ox, oy, canvas.width * 0.18);
-    g.addColorStop(0, 'rgba(255,255,255,0.06)');
-    g.addColorStop(1, 'transparent');
-    ctx.fillStyle = g;
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    const [ox,oy] = transform([0,0,0]);
+    const g = ctx.createRadialGradient(ox,oy,0,ox,oy,canvas.width*0.18);
+    g.addColorStop(0,'rgba(255,255,255,0.06)'); g.addColorStop(1,'transparent');
+    ctx.fillStyle = g; ctx.fillRect(0,0,canvas.width,canvas.height);
 
-    drawGrid();
-
-    // negative (dashed) halves
-    drawLine([0,0,0], [-L, 0, 0], COLORS.B + '55', [6, 5]);
-    drawLine([0,0,0], [ 0,-L, 0], COLORS.V + '55', [6, 5]);
-    drawLine([0,0,0], [ 0, 0,-L], COLORS.F + '55', [6, 5]);
-
-    // solid positive axes with arrows
-    drawArrow([0,0,0], [LA, 0,  0 ], COLORS.B); // B → front (X+)
-    drawArrow([0,0,0], [ 0, LA, 0 ], COLORS.V); // V → right (Y+)
-    drawArrow([0,0,0], [ 0, 0,  LA], COLORS.F); // F → up    (Z+)
-
-    // labels at tips
-    drawLabel([LA + 0.18, 0, 0],      'B', COLORS.B);
-    drawLabel([0, LA + 0.18, 0],      'V', COLORS.V);
-    drawLabel([0, 0, LA + 0.18],      'F', COLORS.F);
-
-    // small labels at negative ends
-    const sm = canvas.width * 0.032;
-    const negLabelStyle = (color) => {
-      ctx.font = `700 ${sm}px 'Share Tech Mono', monospace`;
-      ctx.fillStyle = color + '99';
-      ctx.shadowColor = color;
-      ctx.shadowBlur = 6;
-    };
-
-    function negLabel(pos, text, color) {
-      const [px, py] = project(rotateXY(pos));
-      ctx.save();
-      negLabelStyle(color);
-      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      ctx.fillText(text, px, py);
-      ctx.restore();
+    // grid on B–V plane (z=0)
+    const N=4, step=0.25;
+    for (let i=-N; i<=N; i++) {
+      const t = i*step;
+      line([-1,t,0],[1,t,0],'rgba(255,255,255,0.07)');
+      line([t,-1,0],[t,1,0],'rgba(255,255,255,0.07)');
     }
-    negLabel([-L - 0.14, 0, 0], '-B', COLORS.B);
-    negLabel([0, -L - 0.14, 0], '-V', COLORS.V);
-    negLabel([0, 0, -L - 0.14], '-F', COLORS.F);
+
+    // dashed negative halves
+    line([0,0,0],[-L,0,0], COLORS.B+'55',[6,5]);
+    line([0,0,0],[0,-L,0], COLORS.V+'55',[6,5]);
+    line([0,0,0],[0,0,-L*Fs], COLORS.F+'55',[6,5]);
+
+    // positive axes
+    arrow([0,0,0],[LA,0,0],   COLORS.B);
+    arrow([0,0,0],[0,LA,0],   COLORS.V);
+    arrow([0,0,0],[0,0,LA*Fs],COLORS.F);
+
+    // axis labels
+    label([LA+0.18, 0,       0      ], 'B', COLORS.B);
+    label([0,       LA+0.18, 0      ], 'V', COLORS.V);
+    label([0,       0,       (LA+0.18)*Fs], 'F', COLORS.F);
+
+    // negative labels
+    smallLabel([-L-0.15, 0,       0       ], '-B', COLORS.B);
+    smallLabel([0,       -L-0.15, 0       ], '-V', COLORS.V);
+    smallLabel([0,       0,       -(L+0.15)*Fs], '-F', COLORS.F);
 
     // origin dot
-    drawDot([0,0,0], '#ffffff', 5);
+    dot([0,0,0],'#ffffff',5);
+
+    // ── −B plane: 5×5 arrow grid pointing toward +B ──────────────────────────
+    const PLANE_X  = -L;
+    const GRID_N   = 2;
+    const GRID_STEP = 0.38;
+
+    // Shared screen-space direction: plane-centre → +B tip
+    const [bpx,bpy] = transform([LA,0,0]);
+    const [bnx,bny] = transform([PLANE_X,0,0]);
+    const ddx=bpx-bnx, ddy=bpy-bny;
+    const dlen=Math.sqrt(ddx*ddx+ddy*ddy)||1;
+    const ndx=ddx/dlen, ndy=ddy/dlen;
+
+    const ARL  = canvas.width*0.038;
+    const AHL  = canvas.width*0.013;
+    const aAng = Math.atan2(ndy,ndx);
+    const aSpr = 0.44;
+
+    for (let vi=-GRID_N; vi<=GRID_N; vi++) {
+      for (let fi=-GRID_N; fi<=GRID_N; fi++) {
+        const [px,py] = transform([PLANE_X, vi*GRID_STEP, fi*GRID_STEP]);
+        const dist = Math.sqrt((vi/GRID_N)**2+(fi/GRID_N)**2);
+        const alpha = Math.max(0.18, 1-dist*0.52);
+
+        const tx=px+ndx*ARL, ty=py+ndy*ARL;
+        const tlx=px-ndx*ARL*0.65, tly=py-ndy*ARL*0.65;
+
+        ctx.save();
+        ctx.globalAlpha=alpha;
+        ctx.strokeStyle=COLORS.B; ctx.fillStyle=COLORS.B;
+        ctx.lineWidth=1.8; ctx.shadowColor=COLORS.B; ctx.shadowBlur=10;
+        ctx.beginPath(); ctx.moveTo(tlx,tly); ctx.lineTo(tx,ty); ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(tx,ty);
+        ctx.lineTo(tx-AHL*Math.cos(aAng-aSpr), ty-AHL*Math.sin(aAng-aSpr));
+        ctx.lineTo(tx-AHL*Math.cos(aAng+aSpr), ty-AHL*Math.sin(aAng+aSpr));
+        ctx.closePath(); ctx.fill();
+        ctx.restore();
+      }
+    }
+
+    // dashed border of -B plane
+    const corners=[
+      [PLANE_X,-GRID_N*GRID_STEP,-GRID_N*GRID_STEP],
+      [PLANE_X, GRID_N*GRID_STEP,-GRID_N*GRID_STEP],
+      [PLANE_X, GRID_N*GRID_STEP, GRID_N*GRID_STEP],
+      [PLANE_X,-GRID_N*GRID_STEP, GRID_N*GRID_STEP],
+    ];
+    ctx.save();
+    ctx.strokeStyle=COLORS.B+'55'; ctx.lineWidth=1.2; ctx.setLineDash([4,4]);
+    ctx.beginPath();
+    corners.forEach((c,i)=>{
+      const [cx,cy]=transform(c);
+      i===0?ctx.moveTo(cx,cy):ctx.lineTo(cx,cy);
+    });
+    ctx.closePath(); ctx.stroke(); ctx.restore();
+
+    // charge indicator badge (top-left of canvas)
+    const bx2=18, by2=18, br=14;
+    ctx.save();
+    ctx.beginPath(); ctx.arc(bx2,by2,br,0,Math.PI*2);
+    ctx.fillStyle = chargePos ? COLORS.B+'33' : COLORS.V+'33';
+    ctx.strokeStyle = chargePos ? COLORS.B : COLORS.V;
+    ctx.lineWidth=1.5; ctx.shadowColor = chargePos?COLORS.B:COLORS.V; ctx.shadowBlur=10;
+    ctx.fill(); ctx.stroke();
+    ctx.font=`900 ${br}px 'Orbitron',sans-serif`;
+    ctx.fillStyle = chargePos?COLORS.B:COLORS.V;
+    ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillText(chargePos?'+':'−', bx2, by2+1);
+    ctx.restore();
   }
 
   draw();
