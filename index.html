@@ -230,7 +230,7 @@
     const angleY = dx * speed;  // spin left/right
 
     // World-space axes for screen horizontal/vertical
-    const qY = axisAngleQuat(0, 1, 0, angleY); // spin around world Y
+    const qY = axisAngleQuat(0, 1, 0, -angleY); // spin around world Y
     const qX = axisAngleQuat(1, 0, 0, angleX); // tilt around world X
     quat = qNorm(qMul(qMul(qY, qX), quat));
   }
