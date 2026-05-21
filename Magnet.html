@@ -1,0 +1,630 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Magnet Sandbox</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Exo+2:wght@300;400;600;800&display=swap');
+:root {
+  --bg: #0a0c10; --panel: #0f1318; --border: #1e2730;
+  --north: #ff3b5c; --south: #00c8ff;
+  --glow-n: 0 0 18px #ff3b5c88, 0 0 40px #ff3b5c33;
+  --glow-s: 0 0 18px #00c8ff88, 0 0 40px #00c8ff33;
+  --text: #c8dde8; --muted: #4a6070; --accent: #f0c040;
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+body {
+  background: var(--bg);
+  font-family: 'Exo 2', sans-serif;
+  color: var(--text);
+  height: 100vh;
+  display: flex; flex-direction: column;
+  overflow: hidden; user-select: none;
+}
+header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 8px 16px; border-bottom: 1px solid var(--border);
+  background: var(--panel); flex-shrink: 0; z-index: 10; gap: 8px; flex-wrap: wrap;
+}
+.logo {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 1rem; letter-spacing: 0.15em;
+  color: var(--accent); text-shadow: 0 0 12px #f0c04066; white-space: nowrap;
+}
+.logo span { color: var(--muted); font-size: 0.7rem; margin-left: 6px; }
+.controls { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.btn {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 0.72rem; letter-spacing: 0.06em;
+  padding: 6px 11px; border: 1px solid var(--border);
+  background: transparent; color: var(--text);
+  cursor: pointer; border-radius: 3px; transition: all 0.15s; white-space: nowrap;
+}
+.btn:hover { background: #1e2730; border-color: var(--muted); }
+.btn.north { border-color: var(--north); color: var(--north); text-shadow: 0 0 8px var(--north); }
+.btn.north:hover, .btn.north.active { background: #ff3b5c22; box-shadow: var(--glow-n); }
+.btn.south { border-color: var(--south); color: var(--south); text-shadow: 0 0 8px var(--south); }
+.btn.south:hover, .btn.south.active { background: #00c8ff22; box-shadow: var(--glow-s); }
+.btn.bar { border-color: #b080ff; color: #b080ff; text-shadow: 0 0 8px #b080ff88; }
+.btn.bar:hover, .btn.bar.active { background: #b080ff22; box-shadow: 0 0 14px #b080ff55; }
+.btn.horse { border-color: #ffa040; color: #ffa040; text-shadow: 0 0 8px #ffa04088; }
+.btn.horse:hover, .btn.horse.active { background: #ffa04022; box-shadow: 0 0 14px #ffa04055; }
+.btn.danger { border-color: #ff6b35; color: #ff6b35; }
+.btn.danger:hover { background: #ff6b3522; }
+.btn.active { font-weight: 600; }
+.sep { width: 1px; height: 22px; background: var(--border); flex-shrink: 0; }
+.stat { font-family: 'Share Tech Mono', monospace; font-size: 0.7rem; color: var(--muted); }
+.stat b { color: var(--accent); }
+#sandbox { flex: 1; position: relative; overflow: hidden; cursor: crosshair; }
+canvas { position: absolute; top:0; left:0; width:100%; height:100%; }
+#uiCanvas { z-index: 3; pointer-events: none; }
+#fieldCanvas { z-index: 1; }
+.hint {
+  position: absolute; bottom: 12px; left: 50%; transform: translateX(-50%);
+  font-family: 'Share Tech Mono', monospace; font-size: 0.65rem;
+  color: var(--muted); pointer-events: none; letter-spacing: 0.1em; text-align: center;
+  white-space: nowrap;
+}
+</style>
+</head>
+<body>
+<header>
+  <div class="logo">⬡ MAGNET SANDBOX <span>v2.0</span></div>
+  <div class="controls">
+    <button class="btn north active" id="btnN" onclick="setMode('point_N')">⊕ NORTH POLE</button>
+    <button class="btn south" id="btnS" onclick="setMode('point_S')">⊖ SOUTH POLE</button>
+    <button class="btn bar" id="btnBar" onclick="setMode('bar')">▬ BAR MAGNET</button>
+    <button class="btn horse" id="btnHorse" onclick="setMode('horseshoe')">∪ HORSESHOE</button>
+    <div class="sep"></div>
+    <button class="btn" onclick="toggleFieldLines()" id="btnField">FIELD: ON</button>
+    <button class="btn" onclick="toggleArrows()" id="btnArrows">ARROWS: ON</button>
+    <div class="sep"></div>
+    <button class="btn danger" onclick="clearAll()">CLEAR ALL</button>
+    <div class="sep"></div>
+    <div class="stat">OBJECTS: <b id="magCount">0</b></div>
+  </div>
+</header>
+<div id="sandbox">
+  <canvas id="fieldCanvas"></canvas>
+  <canvas id="uiCanvas"></canvas>
+  <div class="hint">Click to place · Drag to move · Right-click/scroll to rotate · Hover+× to delete</div>
+</div>
+<script>
+const sandbox = document.getElementById('sandbox');
+const fieldCanvas = document.getElementById('fieldCanvas');
+const uiCanvas = document.getElementById('uiCanvas');
+const fc = fieldCanvas.getContext('2d');
+const uc = uiCanvas.getContext('2d');
+
+let objects = []; // each has poles: [{x,y,charge}], shape info, angle, etc.
+let mode = 'point_N';
+let showFieldLines = true;
+let showArrows = true;
+let dragging = null;
+let dragOffX = 0, dragOffY = 0;
+let needsRedraw = true;
+let hoverId = null;
+
+// ---- resize ----
+function resize() {
+  fieldCanvas.width = uiCanvas.width = sandbox.clientWidth;
+  fieldCanvas.height = uiCanvas.height = sandbox.clientHeight;
+  needsRedraw = true;
+}
+window.addEventListener('resize', resize);
+resize();
+
+// ---- mode ----
+function setMode(m) {
+  mode = m;
+  ['btnN','btnS','btnBar','btnHorse'].forEach(id => document.getElementById(id).classList.remove('active'));
+  const map = { point_N:'btnN', point_S:'btnS', bar:'btnBar', horseshoe:'btnHorse' };
+  document.getElementById(map[m]).classList.add('active');
+}
+function toggleFieldLines() {
+  showFieldLines = !showFieldLines;
+  document.getElementById('btnField').textContent = 'FIELD: ' + (showFieldLines?'ON':'OFF');
+  needsRedraw = true;
+}
+function toggleArrows() {
+  showArrows = !showArrows;
+  document.getElementById('btnArrows').textContent = 'ARROWS: ' + (showArrows?'ON':'OFF');
+  needsRedraw = true;
+}
+function clearAll() {
+  objects = [];
+  updateCount();
+  needsRedraw = true;
+}
+function updateCount() {
+  document.getElementById('magCount').textContent = objects.length;
+}
+
+// ---- object factory ----
+function makePole(cx, cy, type) {
+  const charge = type === 'point_N' ? 1 : -1;
+  return {
+    id: Math.random(), kind: type, x: cx, y: cy, angle: 0,
+    poles: [{ ox: 0, oy: 0, charge }],
+    radius: 26
+  };
+}
+function makeBar(cx, cy) {
+  // Rectangle 90×36, N on left, S on right
+  return {
+    id: Math.random(), kind: 'bar', x: cx, y: cy, angle: 0,
+    w: 90, h: 36,
+    poles: [
+      { ox: -28, oy: 0, charge: 1 },  // N
+      { ox:  28, oy: 0, charge: -1 }  // S
+    ]
+  };
+}
+function makeHorseshoe(cx, cy) {
+  // U-shape: two tips separated horizontally, both at same y-offset (top of U)
+  return {
+    id: Math.random(), kind: 'horseshoe', x: cx, y: cy, angle: 0,
+    armW: 14, armH: 55, gap: 38,  // gap between inner arms
+    poles: [
+      { ox: -(38/2 + 14/2), oy: -30, charge:  1 },  // N tip (left arm top)
+      { ox:  (38/2 + 14/2), oy: -30, charge: -1 }   // S tip (right arm top)
+    ]
+  };
+}
+
+function worldPoles(obj) {
+  const cos = Math.cos(obj.angle), sin = Math.sin(obj.angle);
+  return obj.poles.map(p => ({
+    x: obj.x + p.ox * cos - p.oy * sin,
+    y: obj.y + p.ox * sin + p.oy * cos,
+    charge: p.charge
+  }));
+}
+
+// ---- physics ----
+function fieldAt(px, py) {
+  let fx = 0, fy = 0;
+  for (const obj of objects) {
+    for (const p of worldPoles(obj)) {
+      const dx = px - p.x, dy = py - p.y;
+      const r2 = dx*dx + dy*dy;
+      if (r2 < 4) continue;
+      const r = Math.sqrt(r2);
+      const strength = p.charge * 9000 / r2;
+      fx += strength * dx / r;
+      fy += strength * dy / r;
+    }
+  }
+  return { x: fx, y: fy };
+}
+
+// ---- draw arrow ----
+function drawArrow(ctx, x, y, dx, dy, len, color, alpha) {
+  if (len < 2) return;
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  ctx.strokeStyle = color; ctx.fillStyle = color;
+  ctx.lineWidth = 1.3;
+  ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x+dx*len, y+dy*len); ctx.stroke();
+  const angle = Math.atan2(dy, dx);
+  const aLen = Math.min(7, len*0.6);
+  const ax = x+dx*len, ay = y+dy*len;
+  ctx.beginPath();
+  ctx.moveTo(ax, ay);
+  ctx.lineTo(ax - aLen*Math.cos(angle-0.45), ay - aLen*Math.sin(angle-0.45));
+  ctx.lineTo(ax - aLen*Math.cos(angle+0.45), ay - aLen*Math.sin(angle+0.45));
+  ctx.closePath(); ctx.fill();
+  ctx.restore();
+}
+
+// ---- draw field ----
+function drawFieldLines() {
+  if (!showFieldLines || objects.length === 0) return;
+  const W = fieldCanvas.width, H = fieldCanvas.height;
+  const stepSize = 5, maxSteps = 700;
+
+  // Collect all N poles from all objects
+  const nPoles = [];
+  const sPoles = [];
+  for (const obj of objects) {
+    for (const p of worldPoles(obj)) {
+      if (p.charge > 0) nPoles.push(p); else sPoles.push(p);
+    }
+  }
+
+  const numLines = 14;
+  for (const np of nPoles) {
+    for (let i = 0; i < numLines; i++) {
+      const ang = (2*Math.PI*i)/numLines;
+      let x = np.x + Math.cos(ang)*20;
+      let y = np.y + Math.sin(ang)*20;
+      const pts = [[x,y]];
+
+      for (let step = 0; step < maxSteps; step++) {
+        const f = fieldAt(x, y);
+        const fm = Math.sqrt(f.x*f.x + f.y*f.y);
+        if (fm < 0.0001) break;
+        const nx = f.x/fm, ny = f.y/fm;
+        x += nx*stepSize; y += ny*stepSize;
+        if (x<-30||x>W+30||y<-30||y>H+30) break;
+        let nearS = false;
+        for (const sp of sPoles) {
+          const dd = (x-sp.x)**2+(y-sp.y)**2;
+          if (dd < 18*18) { nearS=true; break; }
+        }
+        pts.push([x,y]);
+        if (nearS) break;
+      }
+
+      if (pts.length < 2) continue;
+      fc.save();
+      fc.lineWidth = 1.1;
+      fc.beginPath();
+      fc.moveTo(pts[0][0], pts[0][1]);
+      for (let p=1;p<pts.length;p++) fc.lineTo(pts[p][0],pts[p][1]);
+      const gr = fc.createLinearGradient(pts[0][0],pts[0][1],pts[pts.length-1][0],pts[pts.length-1][1]);
+      gr.addColorStop(0,'rgba(255,70,90,0.6)');
+      gr.addColorStop(0.5,'rgba(120,200,255,0.35)');
+      gr.addColorStop(1,'rgba(0,180,255,0.6)');
+      fc.strokeStyle = gr; fc.globalAlpha = 0.75;
+      fc.stroke(); fc.restore();
+
+      if (showArrows && pts.length > 10) {
+        const every = Math.max(4, Math.floor(pts.length/4));
+        for (let ai=every; ai<pts.length-2; ai+=every) {
+          const px=pts[ai][0], py=pts[ai][1];
+          const nx=pts[ai+1][0]-pts[ai-1][0], ny=pts[ai+1][1]-pts[ai-1][1];
+          const nm=Math.sqrt(nx*nx+ny*ny);
+          if (nm<0.001) continue;
+          drawArrow(fc, px-nx/nm*4, py-ny/nm*4, nx/nm, ny/nm, 9, '#a0e8ff', 0.9);
+        }
+      }
+    }
+  }
+
+  // Background vector grid
+  const gs = 40;
+  for (let gx=gs/2; gx<W; gx+=gs) {
+    for (let gy=gs/2; gy<H; gy+=gs) {
+      const f = fieldAt(gx,gy);
+      const fm = Math.sqrt(f.x*f.x+f.y*f.y);
+      if (fm<0.5) continue;
+      const nx=f.x/fm, ny=f.y/fm;
+      const str = Math.min(1, Math.log(fm+1)/8);
+      if (str<0.04) continue;
+      if (showArrows) drawArrow(fc, gx-nx*7, gy-ny*7, nx, ny, 14, '#5bc8e8', str*0.35);
+      else {
+        fc.save(); fc.globalAlpha=str*0.2; fc.strokeStyle='#5bc8e8'; fc.lineWidth=1;
+        fc.beginPath(); fc.moveTo(gx-nx*6,gy-ny*6); fc.lineTo(gx+nx*6,gy+ny*6); fc.stroke();
+        fc.restore();
+      }
+    }
+  }
+}
+
+// ---- draw objects on uiCanvas ----
+function drawObjects() {
+  uc.clearRect(0,0,uiCanvas.width,uiCanvas.height);
+  for (const obj of objects) {
+    uc.save();
+    uc.translate(obj.x, obj.y);
+    uc.rotate(obj.angle);
+    const isHover = obj.id === hoverId;
+
+    if (obj.kind === 'point_N' || obj.kind === 'point_S') {
+      const isN = obj.kind === 'point_N';
+      const r = 26;
+      // glow
+      uc.shadowBlur = isHover ? 28 : 16;
+      uc.shadowColor = isN ? '#ff3b5c' : '#00c8ff';
+      const grad = uc.createRadialGradient(-r*0.3,-r*0.3,2, 0,0, r);
+      grad.addColorStop(0, isN ? '#ff8090' : '#60e8ff');
+      grad.addColorStop(1, isN ? '#aa1030' : '#005f88');
+      uc.beginPath(); uc.arc(0,0,r,0,Math.PI*2);
+      uc.fillStyle = grad; uc.fill();
+      uc.strokeStyle = isN ? '#ff3b5c' : '#00c8ff';
+      uc.lineWidth = 2; uc.stroke();
+      uc.shadowBlur = 0;
+      uc.fillStyle = '#fff';
+      uc.font = 'bold 18px "Share Tech Mono", monospace';
+      uc.textAlign = 'center'; uc.textBaseline = 'middle';
+      uc.fillText(isN ? 'N' : 'S', 0, 1);
+
+      // delete X
+      if (isHover) drawDeleteBtn(uc, r-4, -r+4);
+
+    } else if (obj.kind === 'bar') {
+      const hw = obj.w/2, hh = obj.h/2;
+      // shadow
+      uc.shadowBlur = isHover ? 20 : 10;
+      uc.shadowColor = '#8060cc';
+      // N half (left)
+      const gN = uc.createLinearGradient(-hw,-hh, 0,-hh);
+      gN.addColorStop(0,'#cc1a35'); gN.addColorStop(1,'#882030');
+      uc.fillStyle = gN;
+      uc.beginPath(); uc.rect(-hw,-hh, hw, obj.h); uc.fill();
+      // S half (right)
+      const gS = uc.createLinearGradient(0,-hh, hw,-hh);
+      gS.addColorStop(0,'#006a88'); gS.addColorStop(1,'#008fbb');
+      uc.fillStyle = gS;
+      uc.beginPath(); uc.rect(0,-hh, hw, obj.h); uc.fill();
+      // border
+      uc.shadowBlur = 0;
+      uc.strokeStyle = '#555'; uc.lineWidth = 1.5;
+      uc.strokeRect(-hw,-hh, obj.w, obj.h);
+      // center divider
+      uc.strokeStyle = '#333'; uc.lineWidth = 1;
+      uc.beginPath(); uc.moveTo(0,-hh); uc.lineTo(0,hh); uc.stroke();
+      // labels
+      uc.font = 'bold 13px "Share Tech Mono", monospace';
+      uc.textAlign = 'center'; uc.textBaseline = 'middle';
+      uc.fillStyle = '#ffaaaa'; uc.fillText('N', -hw/2, 0);
+      uc.fillStyle = '#88ddff'; uc.fillText('S',  hw/2, 0);
+      // highlight strip
+      uc.fillStyle = 'rgba(255,255,255,0.07)';
+      uc.fillRect(-hw,-hh, obj.w, hh*0.35);
+      if (isHover) drawDeleteBtn(uc, hw-4, -hh+4);
+
+    } else if (obj.kind === 'horseshoe') {
+      const g = obj.gap, aw = obj.armW, ah = obj.armH;
+      const outerW = g + aw*2;
+      // Draw U shape using path
+      uc.shadowBlur = isHover ? 20 : 10;
+      uc.shadowColor = '#ff8820';
+      drawHorseshoePath(uc, g, aw, ah);
+      uc.shadowBlur = 0;
+      // N/S tip labels
+      const tipY = -ah/2 + aw/2; // top of arms
+      const lx = -(g/2 + aw/2), rx = g/2 + aw/2;
+      uc.font = 'bold 11px "Share Tech Mono", monospace';
+      uc.textAlign = 'center'; uc.textBaseline = 'middle';
+      // N tip cap
+      uc.fillStyle = '#cc1a35';
+      uc.fillRect(lx-aw/2, -ah/2, aw, aw*0.8);
+      uc.fillStyle = '#ffaaaa'; uc.fillText('N', lx, -ah/2 + aw*0.4);
+      // S tip cap
+      uc.fillStyle = '#006080';
+      uc.fillRect(rx-aw/2, -ah/2, aw, aw*0.8);
+      uc.fillStyle = '#88ddff'; uc.fillText('S', rx, -ah/2 + aw*0.4);
+      if (isHover) drawDeleteBtn(uc, outerW/2-4, -ah/2+4);
+    }
+
+    uc.restore();
+  }
+}
+
+function drawHorseshoePath(ctx, gap, aw, ah) {
+  // U shape: two vertical arms + curved bottom
+  const outerW = gap + aw*2;
+  const innerGap = gap;
+  const bottomR = innerGap/2 + aw/2; // radius for outer curve
+  const innerR = innerGap/2;          // radius for inner curve
+  const topY = -ah/2;
+  const bottomY = ah/2 - bottomR;
+
+  ctx.beginPath();
+  // Left arm outer top → down
+  ctx.moveTo(-outerW/2, topY);
+  ctx.lineTo(-outerW/2, bottomY);
+  // outer bottom arc (left → right)
+  ctx.arc(0, bottomY, bottomR, Math.PI, 0, false);
+  // right arm outer top
+  ctx.lineTo(outerW/2, topY);
+  // right arm inner top
+  ctx.lineTo(outerW/2 - aw, topY);
+  ctx.lineTo(outerW/2 - aw, bottomY);
+  // inner bottom arc (right → left)
+  ctx.arc(0, bottomY, innerR, 0, Math.PI, true);
+  // left arm inner
+  ctx.lineTo(-outerW/2+aw, topY);
+  ctx.closePath();
+
+  const grad = ctx.createLinearGradient(-outerW/2, 0, outerW/2, 0);
+  grad.addColorStop(0, '#aa1028');
+  grad.addColorStop(0.4, '#880020');
+  grad.addColorStop(0.6, '#005070');
+  grad.addColorStop(1, '#007090');
+  ctx.fillStyle = grad;
+  ctx.fill();
+  ctx.strokeStyle = '#444'; ctx.lineWidth = 1.5;
+  ctx.stroke();
+  // shine
+  ctx.fillStyle = 'rgba(255,255,255,0.06)';
+  ctx.fill();
+}
+
+function drawDeleteBtn(ctx, bx, by) {
+  ctx.save();
+  ctx.shadowBlur = 0;
+  ctx.fillStyle = '#ff3030';
+  ctx.strokeStyle = '#ff7070';
+  ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.arc(bx, by, 9, 0, Math.PI*2); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = '#fff';
+  ctx.font = 'bold 11px sans-serif';
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText('×', bx, by+1);
+  ctx.restore();
+}
+
+// ---- main draw ----
+function drawFrame() {
+  fc.clearRect(0,0,fieldCanvas.width,fieldCanvas.height);
+  // grid
+  fc.save();
+  fc.strokeStyle = 'rgba(255,255,255,0.028)'; fc.lineWidth = 1;
+  for (let x=0;x<fieldCanvas.width;x+=40) { fc.beginPath();fc.moveTo(x,0);fc.lineTo(x,fieldCanvas.height);fc.stroke(); }
+  for (let y=0;y<fieldCanvas.height;y+=40) { fc.beginPath();fc.moveTo(0,y);fc.lineTo(fieldCanvas.width,y);fc.stroke(); }
+  fc.restore();
+  drawFieldLines();
+  drawObjects();
+  needsRedraw = false;
+}
+
+function loop() {
+  if (needsRedraw || dragging) drawFrame();
+  requestAnimationFrame(loop);
+}
+loop();
+
+// ---- interaction helpers ----
+function getObjAt(x, y) {
+  // hit test in reverse (top drawn last = on top)
+  for (let i = objects.length-1; i>=0; i--) {
+    const obj = objects[i];
+    const cos = Math.cos(-obj.angle), sin = Math.sin(-obj.angle);
+    const dx = x - obj.x, dy = y - obj.y;
+    const lx = dx*cos - dy*sin, ly = dx*sin + dy*cos;
+    let hit = false;
+    if (obj.kind==='point_N'||obj.kind==='point_S') {
+      hit = lx*lx+ly*ly < 26*26;
+    } else if (obj.kind==='bar') {
+      hit = Math.abs(lx)<obj.w/2 && Math.abs(ly)<obj.h/2;
+    } else if (obj.kind==='horseshoe') {
+      hit = Math.abs(lx)<(obj.gap/2+obj.armW) && Math.abs(ly)<obj.armH/2+4;
+    }
+    if (hit) return obj;
+  }
+  return null;
+}
+
+function isOnDeleteBtn(obj, x, y) {
+  // check if click is on the × button (top-right of bounding box)
+  let bx, by;
+  if (obj.kind==='point_N'||obj.kind==='point_S') { bx=22; by=-22; }
+  else if (obj.kind==='bar') { bx=obj.w/2-4; by=-obj.h/2+4; }
+  else { bx=obj.gap/2+obj.armW-4; by=-obj.armH/2+4; }
+  // rotate back
+  const cos=Math.cos(obj.angle), sin=Math.sin(obj.angle);
+  const wx = obj.x + bx*cos - by*sin;
+  const wy = obj.y + bx*sin + by*cos;
+  return (x-wx)**2+(y-wy)**2 < 100;
+}
+
+// ---- place on click ----
+sandbox.addEventListener('click', e => {
+  if (e.target !== uiCanvas && e.target !== fieldCanvas) return;
+  const rect = sandbox.getBoundingClientRect();
+  const x = e.clientX - rect.left, y = e.clientY - rect.top;
+
+  // check delete buttons
+  const hit = getObjAt(x,y);
+  if (hit && hoverId===hit.id && isOnDeleteBtn(hit,x,y)) {
+    objects = objects.filter(o=>o.id!==hit.id);
+    hoverId = null; updateCount(); needsRedraw=true; return;
+  }
+  if (hit) return; // clicking existing obj = drag, not place
+
+  // place new
+  let obj;
+  if (mode==='point_N') obj=makePole(x,y,'point_N');
+  else if (mode==='point_S') obj=makePole(x,y,'point_S');
+  else if (mode==='bar') obj=makeBar(x,y);
+  else obj=makeHorseshoe(x,y);
+  objects.push(obj);
+  updateCount(); needsRedraw=true;
+});
+
+// ---- hover ----
+sandbox.addEventListener('mousemove', e => {
+  if (dragging) {
+    const rect = sandbox.getBoundingClientRect();
+    const x = e.clientX-rect.left-dragOffX, y = e.clientY-rect.top-dragOffY;
+    dragging.x = x; dragging.y = y;
+    needsRedraw = true;
+    return;
+  }
+  const rect = sandbox.getBoundingClientRect();
+  const x = e.clientX-rect.left, y = e.clientY-rect.top;
+  const hit = getObjAt(x,y);
+  const newHover = hit ? hit.id : null;
+  if (newHover !== hoverId) { hoverId=newHover; needsRedraw=true; }
+  sandbox.style.cursor = hit ? 'grab' : 'crosshair';
+});
+
+// ---- drag ----
+sandbox.addEventListener('mousedown', e => {
+  if (e.button===2) return; // right click = rotate handled separately
+  const rect = sandbox.getBoundingClientRect();
+  const x = e.clientX-rect.left, y = e.clientY-rect.top;
+  const hit = getObjAt(x,y);
+  if (!hit) return;
+  e.preventDefault();
+  dragOffX = x - hit.x; dragOffY = y - hit.y;
+  dragging = hit;
+  sandbox.style.cursor = 'grabbing';
+});
+document.addEventListener('mouseup', e => {
+  if (dragging) { dragging=null; sandbox.style.cursor='crosshair'; needsRedraw=true; }
+});
+
+// ---- rotate on right-click drag ----
+let rotatingObj = null, rotStartAngle = 0, rotStartMouse = 0;
+sandbox.addEventListener('mousedown', e => {
+  if (e.button !== 2) return;
+  e.preventDefault();
+  const rect = sandbox.getBoundingClientRect();
+  const x = e.clientX-rect.left, y = e.clientY-rect.top;
+  const hit = getObjAt(x,y);
+  if (!hit) return;
+  rotatingObj = hit;
+  rotStartMouse = Math.atan2(y-hit.y, x-hit.x);
+  rotStartAngle = hit.angle;
+});
+document.addEventListener('mousemove', e => {
+  if (!rotatingObj) return;
+  const rect = sandbox.getBoundingClientRect();
+  const x = e.clientX-rect.left, y = e.clientY-rect.top;
+  const a = Math.atan2(y-rotatingObj.y, x-rotatingObj.x);
+  rotatingObj.angle = rotStartAngle + (a - rotStartMouse);
+  needsRedraw = true;
+});
+document.addEventListener('mouseup', e => {
+  if (e.button===2) rotatingObj=null;
+});
+sandbox.addEventListener('contextmenu', e => e.preventDefault());
+
+// ---- scroll to rotate ----
+sandbox.addEventListener('wheel', e => {
+  const rect = sandbox.getBoundingClientRect();
+  const x = e.clientX-rect.left, y = e.clientY-rect.top;
+  const hit = getObjAt(x,y);
+  if (!hit) return;
+  e.preventDefault();
+  hit.angle += e.deltaY * 0.008;
+  needsRedraw = true;
+}, { passive: false });
+
+// ---- touch drag ----
+sandbox.addEventListener('touchstart', e => {
+  const rect = sandbox.getBoundingClientRect();
+  const t = e.touches[0];
+  const x = t.clientX-rect.left, y = t.clientY-rect.top;
+  const hit = getObjAt(x,y);
+  if (!hit) return;
+  e.preventDefault();
+  dragOffX = x-hit.x; dragOffY = y-hit.y;
+  dragging = hit;
+}, { passive: false });
+document.addEventListener('touchmove', e => {
+  if (!dragging) return;
+  e.preventDefault();
+  const rect = sandbox.getBoundingClientRect();
+  const t = e.touches[0];
+  dragging.x = t.clientX-rect.left-dragOffX;
+  dragging.y = t.clientY-rect.top-dragOffY;
+  needsRedraw = true;
+}, { passive: false });
+document.addEventListener('touchend', () => { if(dragging){dragging=null;needsRedraw=true;} });
+
+// ---- seed demo ----
+window.addEventListener('load', () => {
+  const W = sandbox.clientWidth, H = sandbox.clientHeight;
+  const bar = makeBar(W*0.5, H*0.5);
+  objects.push(bar);
+  updateCount(); needsRedraw=true;
+});
+</script>
+</body>
+</html>
