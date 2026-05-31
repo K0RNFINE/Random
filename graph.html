@@ -1,0 +1,998 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Graph Analyzer</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;600;700&family=Space+Mono:wght@400;700&display=swap');
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #0a0a0f;
+    --panel: #111118;
+    --border: #1e1e2e;
+    --accent: #00ffc8;
+    --accent2: #ff4f7b;
+    --accent3: #ffcc00;
+    --accent4: #7b6cff;
+    --text: #e8e8f0;
+    --muted: #666680;
+    --rising: #00ffc8;
+    --falling: #ff4f7b;
+    --crit: #ffcc00;
+    --deriv: #7b6cff;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'JetBrains Mono', monospace;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    overflow-x: hidden;
+  }
+
+  /* Scanline effect */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,255,200,0.012) 2px, rgba(0,255,200,0.012) 4px);
+    pointer-events: none;
+    z-index: 1000;
+  }
+
+  header {
+    padding: 18px 32px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    background: var(--panel);
+  }
+
+  .logo {
+    font-size: 1.1rem;
+    font-weight: 700;
+    letter-spacing: 0.2em;
+    color: var(--accent);
+    text-shadow: 0 0 20px rgba(0,255,200,0.5);
+  }
+
+  .logo span { color: var(--muted); }
+
+  .subtitle {
+    font-size: 0.65rem;
+    color: var(--muted);
+    letter-spacing: 0.15em;
+  }
+
+  .main {
+    display: grid;
+    grid-template-columns: 1fr 320px;
+    flex: 1;
+    gap: 0;
+  }
+
+  /* LEFT: Canvas area */
+  .canvas-area {
+    padding: 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .canvas-wrap {
+    position: relative;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    overflow: hidden;
+    background: #07070d;
+    box-shadow: 0 0 40px rgba(0,255,200,0.04), inset 0 0 60px rgba(0,0,0,0.4);
+  }
+
+  canvas { display: block; width: 100%; }
+
+  .canvas-label {
+    position: absolute;
+    top: 12px; left: 14px;
+    font-size: 0.6rem;
+    color: var(--muted);
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+  }
+
+  /* Controls bar */
+  .controls {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+
+  .btn {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    padding: 9px 18px;
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    background: var(--panel);
+    color: var(--text);
+    cursor: pointer;
+    transition: all 0.15s;
+    text-transform: uppercase;
+  }
+
+  .btn:hover { border-color: var(--accent); color: var(--accent); background: rgba(0,255,200,0.05); }
+  .btn:active { transform: scale(0.97); }
+
+  .btn-accent {
+    background: var(--accent);
+    color: #000;
+    border-color: var(--accent);
+    box-shadow: 0 0 16px rgba(0,255,200,0.3);
+  }
+  .btn-accent:hover { background: #00e6b4; border-color: #00e6b4; color: #000; box-shadow: 0 0 24px rgba(0,255,200,0.5); }
+
+  .btn-play {
+    background: var(--accent4);
+    color: #fff;
+    border-color: var(--accent4);
+    box-shadow: 0 0 16px rgba(123,108,255,0.3);
+    min-width: 90px;
+  }
+  .btn-play:hover { background: #6a5aff; border-color: #6a5aff; color: #fff; }
+  .btn-play.playing { background: var(--accent2); border-color: var(--accent2); box-shadow: 0 0 16px rgba(255,79,123,0.3); }
+
+  .btn-step {
+    background: transparent;
+    border-color: var(--accent3);
+    color: var(--accent3);
+  }
+  .btn-step:hover { background: rgba(255,204,0,0.08); }
+
+  .speed-wrap {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.65rem;
+    color: var(--muted);
+  }
+
+  input[type=range] {
+    -webkit-appearance: none;
+    width: 80px;
+    height: 3px;
+    background: var(--border);
+    border-radius: 2px;
+    outline: none;
+  }
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 12px; height: 12px;
+    border-radius: 50%;
+    background: var(--accent4);
+    cursor: pointer;
+  }
+
+  .frame-indicator {
+    margin-left: auto;
+    font-size: 0.65rem;
+    color: var(--muted);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .frame-num { color: var(--accent); font-weight: 700; }
+
+  /* RIGHT: Info panel */
+  .info-panel {
+    border-left: 1px solid var(--border);
+    background: var(--panel);
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+    max-height: calc(100vh - 70px);
+  }
+
+  .section {
+    border-bottom: 1px solid var(--border);
+    padding: 16px;
+  }
+
+  .section-title {
+    font-size: 0.6rem;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .section-title::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+  }
+
+  .var-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 4px 0;
+    font-size: 0.68rem;
+    border-bottom: 1px solid rgba(255,255,255,0.03);
+  }
+  .var-row:last-child { border-bottom: none; }
+  .var-key { color: var(--muted); }
+  .var-val { font-weight: 600; }
+
+  .color-dot {
+    display: inline-block;
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    margin-right: 6px;
+  }
+
+  .crit-list { display: flex; flex-direction: column; gap: 8px; }
+
+  .crit-card {
+    background: rgba(255,255,255,0.03);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    padding: 10px;
+    font-size: 0.65rem;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .crit-card::before {
+    content: '';
+    position: absolute;
+    left: 0; top: 0; bottom: 0;
+    width: 3px;
+  }
+  .crit-card.max::before { background: var(--rising); }
+  .crit-card.min::before { background: var(--accent2); }
+  .crit-card.inflection::before { background: var(--accent3); }
+
+  .crit-badge {
+    display: inline-block;
+    font-size: 0.55rem;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    padding: 2px 6px;
+    border-radius: 2px;
+    margin-bottom: 6px;
+  }
+  .crit-card.max .crit-badge { background: rgba(0,255,200,0.15); color: var(--rising); }
+  .crit-card.min .crit-badge { background: rgba(255,79,123,0.15); color: var(--accent2); }
+  .crit-card.inflection .crit-badge { background: rgba(255,204,0,0.15); color: var(--accent3); }
+
+  .crit-row { display: flex; justify-content: space-between; padding: 2px 0; color: var(--muted); }
+  .crit-row span:last-child { color: var(--text); font-weight: 600; }
+
+  .legend { display: flex; flex-direction: column; gap: 7px; }
+  .legend-item { display: flex; align-items: center; gap: 10px; font-size: 0.64rem; }
+  .legend-line { width: 24px; height: 2px; border-radius: 1px; }
+
+  .poly-display {
+    font-size: 0.72rem;
+    color: var(--accent);
+    word-break: break-all;
+    line-height: 1.8;
+    padding: 8px;
+    background: rgba(0,255,200,0.04);
+    border: 1px solid rgba(0,255,200,0.1);
+    border-radius: 3px;
+    margin-top: 6px;
+  }
+  .poly-display .coef { color: var(--text); }
+
+  .step-log {
+    font-size: 0.62rem;
+    color: var(--muted);
+    max-height: 120px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .log-entry { 
+    padding: 4px 6px; 
+    border-left: 2px solid var(--border); 
+    color: var(--muted);
+    transition: all 0.2s;
+  }
+  .log-entry.active { border-left-color: var(--accent); color: var(--text); background: rgba(0,255,200,0.04); }
+  .log-entry .log-frame { color: var(--accent3); font-weight: 700; }
+
+  .progress-bar {
+    height: 2px;
+    background: var(--border);
+    border-radius: 1px;
+    margin-top: 10px;
+    overflow: hidden;
+  }
+  .progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--accent4), var(--accent));
+    border-radius: 1px;
+    transition: width 0.1s linear;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <div class="logo">GRAPH<span>/</span>ANALYZER</div>
+    <div class="subtitle">Polynomial Derivative Analysis System</div>
+  </div>
+</header>
+
+<div class="main">
+  <!-- Canvas Area -->
+  <div class="canvas-area">
+    <div class="canvas-wrap">
+      <canvas id="mainCanvas" height="420"></canvas>
+      <div class="canvas-label" id="canvasLabel">f(x)</div>
+    </div>
+    <div class="canvas-wrap">
+      <canvas id="derivCanvas" height="200"></canvas>
+      <div class="canvas-label">f′(x) — First Derivative</div>
+    </div>
+
+    <div class="controls">
+      <button class="btn btn-accent" onclick="randomize()">⟳ RANDOMIZE</button>
+      <button class="btn btn-play" id="playBtn" onclick="togglePlay()">▶ PLAY</button>
+      <button class="btn btn-step" onclick="stepFrame()">→ STEP</button>
+      <div class="speed-wrap">
+        <span>SKIP</span>
+        <input type="number" id="skipInput" min="1" max="800" value="10" style="
+          width:54px; background:var(--panel); border:1px solid var(--border);
+          color:var(--accent3); font-family:'JetBrains Mono',monospace; font-size:0.7rem;
+          padding:5px 6px; border-radius:3px; outline:none; text-align:center;
+        " oninput="this.value=Math.max(1,Math.min(800,parseInt(this.value)||1))">
+        <span>fr</span>
+      </div>
+      <button class="btn" onclick="resetAnim()">↺ RESET</button>
+
+      <div class="speed-wrap">
+        <span>SPEED</span>
+        <input type="range" id="speedSlider" min="1" max="10" value="4" oninput="updateSpeed()">
+        <span id="speedVal">4x</span>
+      </div>
+
+      <div class="frame-indicator">
+        FRAME <span class="frame-num" id="frameNum">0</span> / <span id="frameTotal">0</span>
+        <div class="progress-bar" style="width:80px; display:inline-block; vertical-align:middle; margin:0 4px">
+          <div class="progress-fill" id="progressFill" style="width:0%"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Info Panel -->
+  <div class="info-panel">
+    <!-- Polynomial -->
+    <div class="section">
+      <div class="section-title">Polynomial</div>
+      <div id="polyDisplay" class="poly-display">—</div>
+      <div style="margin-top:8px; font-size:0.62rem; color:var(--muted)">f′(x) =</div>
+      <div id="derivDisplay" class="poly-display" style="border-color:rgba(123,108,255,0.2); background:rgba(123,108,255,0.04); color:var(--deriv)">—</div>
+    </div>
+
+    <!-- Frame variables -->
+    <div class="section">
+      <div class="section-title">Frame Variables</div>
+      <div class="var-row"><span class="var-key">x position</span><span class="var-val" id="v-x">—</span></div>
+      <div class="var-row"><span class="var-key">f(x)</span><span class="var-val" id="v-fx" style="color:var(--accent)">—</span></div>
+      <div class="var-row"><span class="var-key">f′(x)</span><span class="var-val" id="v-dfx" style="color:var(--deriv)">—</span></div>
+      <div class="var-row"><span class="var-key">f″(x)</span><span class="var-val" id="v-ddfx" style="color:var(--accent3)">—</span></div>
+      <div class="var-row">
+        <span class="var-key">Behavior</span>
+        <span class="var-val" id="v-behavior">—</span>
+      </div>
+    </div>
+
+    <!-- Critical Points -->
+    <div class="section">
+      <div class="section-title">Critical Points</div>
+      <div class="crit-list" id="critList">—</div>
+    </div>
+
+    <!-- Legend -->
+    <div class="section">
+      <div class="section-title">Legend</div>
+      <div class="legend">
+        <div class="legend-item">
+          <div class="legend-line" style="background:var(--accent); box-shadow:0 0 6px var(--accent)"></div>
+          <span>f(x) — function</span>
+        </div>
+        <div class="legend-item">
+          <div class="legend-line" style="background:rgba(0,255,200,0.25); height:8px; border-radius:2px"></div>
+          <span style="color:var(--rising)">Rising section (f′ > 0)</span>
+        </div>
+        <div class="legend-item">
+          <div class="legend-line" style="background:rgba(255,79,123,0.25); height:8px; border-radius:2px"></div>
+          <span style="color:var(--falling)">Falling section (f′ < 0)</span>
+        </div>
+        <div class="legend-item">
+          <div class="legend-line" style="background:var(--deriv)"></div>
+          <span>f′(x) — 1st derivative</span>
+        </div>
+        <div class="legend-item">
+          <div class="legend-line" style="background:var(--crit); box-shadow:0 0 6px var(--crit)"></div>
+          <span>Critical points (f′=0)</span>
+        </div>
+        <div class="legend-item">
+          <div class="legend-line" style="background:var(--text); opacity:0.4"></div>
+          <span>Scan cursor</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Step log -->
+    <div class="section">
+      <div class="section-title">Step Log</div>
+      <div class="step-log" id="stepLog"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ─── Math Utilities ─────────────────────────────────────────────────────────
+
+function polyEval(coeffs, x) {
+  // coeffs[0] is highest degree
+  return coeffs.reduce((acc, c) => acc * x + c, 0);
+}
+
+function polyDerive(coeffs) {
+  const deg = coeffs.length - 1;
+  return coeffs.slice(0, -1).map((c, i) => c * (deg - i));
+}
+
+function polyToString(coeffs, varName = 'x') {
+  const deg = coeffs.length - 1;
+  let parts = [];
+  coeffs.forEach((c, i) => {
+    const power = deg - i;
+    if (Math.abs(c) < 1e-9) return;
+    const sign = c >= 0 ? (parts.length ? ' + ' : '') : (parts.length ? ' − ' : '−');
+    const abs = Math.abs(c).toFixed(2).replace(/\.00$/, '');
+    if (power === 0) parts.push(sign + abs);
+    else if (power === 1) parts.push(sign + (abs === '1' ? '' : abs) + varName);
+    else parts.push(sign + (abs === '1' ? '' : abs) + varName + sup(power));
+  });
+  return parts.join('') || '0';
+}
+
+function sup(n) {
+  const sups = {'0':'⁰','1':'¹','2':'²','3':'³','4':'⁴','5':'⁵','6':'⁶','7':'⁷','8':'⁸','9':'⁹'};
+  return String(n).split('').map(d => sups[d] || d).join('');
+}
+
+function findCriticalPoints(dCoeffs, xMin, xMax, steps=2000) {
+  const crits = [];
+  const dx = (xMax - xMin) / steps;
+  let prev = polyEval(dCoeffs, xMin);
+  for (let i = 1; i <= steps; i++) {
+    const x = xMin + i * dx;
+    const cur = polyEval(dCoeffs, x);
+    if (prev * cur <= 0) {
+      // Bisect
+      let a = x - dx, b = x;
+      for (let j = 0; j < 30; j++) {
+        const m = (a + b) / 2;
+        const fm = polyEval(dCoeffs, m);
+        if (Math.abs(fm) < 1e-10) { a = b = m; break; }
+        if (polyEval(dCoeffs, a) * fm < 0) b = m; else a = m;
+      }
+      const cx = (a + b) / 2;
+      if (crits.length === 0 || Math.abs(cx - crits[crits.length-1].x) > 0.01) {
+        crits.push({ x: cx });
+      }
+    }
+    prev = cur;
+  }
+  return crits;
+}
+
+// ─── State ──────────────────────────────────────────────────────────────────
+
+let coeffs = [];
+let dCoeffs = [];
+let ddCoeffs = [];
+let critPoints = [];
+let xMin = -5, xMax = 5;
+let yMin, yMax, dyMin, dyMax;
+let animFrame = 0;
+let totalFrames = 0;
+let playing = false;
+let speed = 4;
+let rafId = null;
+let lastTimestamp = 0;
+let accumTime = 0;
+let logEntries = [];
+
+const mainCanvas = document.getElementById('mainCanvas');
+const derivCanvas = document.getElementById('derivCanvas');
+const mc = mainCanvas.getContext('2d');
+const dc = derivCanvas.getContext('2d');
+
+function resize() {
+  const w = mainCanvas.parentElement.clientWidth;
+  mainCanvas.width = w;
+  derivCanvas.width = w;
+  if (coeffs.length) drawAll();
+}
+window.addEventListener('resize', resize);
+
+// ─── Generate random polynomial ─────────────────────────────────────────────
+
+function randomize() {
+  resetAnim();
+  const deg = Math.floor(Math.random() * 3) + 3; // 3 to 5
+  coeffs = [];
+  for (let i = 0; i <= deg; i++) {
+    let c = (Math.random() - 0.5) * 4;
+    if (i === 0) c = c < 0 ? c - 0.5 : c + 0.5; // ensure non-trivial leading
+    coeffs.push(parseFloat(c.toFixed(3)));
+  }
+  // Normalize to avoid blow-up
+  const norm = Math.abs(coeffs[0]);
+  if (norm > 2) coeffs = coeffs.map(c => parseFloat((c / norm).toFixed(3)));
+
+  dCoeffs = polyDerive(coeffs);
+  ddCoeffs = polyDerive(dCoeffs);
+
+  // Compute y range
+  const xs = Array.from({length: 800}, (_, i) => xMin + (i/799)*(xMax-xMin));
+  const ys = xs.map(x => polyEval(coeffs, x));
+  const dys = xs.map(x => polyEval(dCoeffs, x));
+  const yPad = (Math.max(...ys) - Math.min(...ys)) * 0.2 || 2;
+  const dyPad = (Math.max(...dys) - Math.min(...dys)) * 0.2 || 2;
+  yMin = Math.min(...ys) - yPad;
+  yMax = Math.max(...ys) + yPad;
+  dyMin = Math.min(...dys) - dyPad;
+  dyMax = Math.max(...dys) + dyPad;
+
+  critPoints = findCriticalPoints(dCoeffs, xMin, xMax);
+
+  // Classify critical points
+  critPoints.forEach(cp => {
+    const fxx = polyEval(ddCoeffs, cp.x);
+    const fx = polyEval(coeffs, cp.x);
+    const dfx = polyEval(dCoeffs, cp.x);
+    cp.fx = fx;
+    cp.dfx = dfx;
+    cp.fxx = fxx;
+    if (Math.abs(fxx) < 1e-6) cp.type = 'inflection';
+    else if (fxx < 0) cp.type = 'max';
+    else cp.type = 'min';
+  });
+
+  totalFrames = 800;
+  animFrame = 0;
+
+  document.getElementById('polyDisplay').textContent = 'f(x) = ' + polyToString(coeffs);
+  document.getElementById('derivDisplay').textContent = 'f′(x) = ' + polyToString(dCoeffs);
+  document.getElementById('frameTotal').textContent = totalFrames;
+  renderCritList();
+  resize();
+  pushLog(0, 'Graph generated. Degree: ' + (coeffs.length - 1));
+}
+
+// ─── Rendering ──────────────────────────────────────────────────────────────
+
+function worldToCanvas(x, y, W, H, yMn, yMx) {
+  const cx = ((x - xMin) / (xMax - xMin)) * W;
+  const cy = H - ((y - yMn) / (yMx - yMn)) * H;
+  return [cx, cy];
+}
+
+function drawAll() {
+  drawMain();
+  drawDeriv();
+}
+
+function drawGrid(ctx, W, H, yMn, yMx) {
+  ctx.strokeStyle = 'rgba(255,255,255,0.04)';
+  ctx.lineWidth = 1;
+  for (let gx = Math.ceil(xMin); gx <= xMax; gx++) {
+    const [px] = worldToCanvas(gx, 0, W, H, yMn, yMx);
+    ctx.beginPath(); ctx.moveTo(px, 0); ctx.lineTo(px, H); ctx.stroke();
+    ctx.fillStyle = 'rgba(255,255,255,0.2)';
+    ctx.font = '9px JetBrains Mono';
+    ctx.fillText(gx, px+2, H-4);
+  }
+  const yStep = niceStep(yMx - yMn, 6);
+  for (let gy = Math.ceil(yMn/yStep)*yStep; gy <= yMx; gy += yStep) {
+    const [, py] = worldToCanvas(0, gy, W, H, yMn, yMx);
+    ctx.beginPath(); ctx.moveTo(0, py); ctx.lineTo(W, py); ctx.stroke();
+    ctx.fillStyle = 'rgba(255,255,255,0.2)';
+    ctx.fillText(gy.toFixed(1), 4, py-3);
+  }
+  // Axes
+  ctx.strokeStyle = 'rgba(255,255,255,0.15)';
+  ctx.lineWidth = 1;
+  const [ax] = worldToCanvas(0, 0, W, H, yMn, yMx);
+  ctx.beginPath(); ctx.moveTo(ax, 0); ctx.lineTo(ax, H); ctx.stroke();
+  const [, ay] = worldToCanvas(0, 0, W, H, yMn, yMx);
+  ctx.beginPath(); ctx.moveTo(0, ay); ctx.lineTo(W, ay); ctx.stroke();
+}
+
+function niceStep(range, ticks) {
+  const rough = range / ticks;
+  const mag = Math.pow(10, Math.floor(Math.log10(rough)));
+  for (const m of [1, 2, 5, 10]) if (mag * m >= rough) return mag * m;
+  return mag * 10;
+}
+
+function drawMain() {
+  const W = mainCanvas.width, H = mainCanvas.height;
+  mc.clearRect(0, 0, W, H);
+
+  if (!coeffs.length) return;
+
+  const STEPS = 800;
+  const curX = animFrame === 0 ? xMin : xMin + (animFrame / totalFrames) * (xMax - xMin);
+
+  // Draw rising/falling shaded areas up to curX
+  for (let i = 0; i < Math.min(animFrame, STEPS); i++) {
+    const x0 = xMin + (i / STEPS) * (xMax - xMin);
+    const x1 = xMin + ((i + 1) / STEPS) * (xMax - xMin);
+    const dfx = polyEval(dCoeffs, (x0 + x1) / 2);
+    const y0 = polyEval(coeffs, x0), y1 = polyEval(coeffs, x1);
+    const [px0, py0] = worldToCanvas(x0, y0, W, H, yMin, yMax);
+    const [px1, py1] = worldToCanvas(x1, y1, W, H, yMin, yMax);
+    const [, ayR] = worldToCanvas(0, 0, W, H, yMin, yMax);
+    mc.beginPath();
+    mc.moveTo(px0, Math.min(py0, ayR));
+    mc.lineTo(px1, Math.min(py1, ayR));
+    mc.lineTo(px1, ayR);
+    mc.lineTo(px0, ayR);
+    mc.closePath();
+    mc.fillStyle = dfx > 0 ? 'rgba(0,255,200,0.07)' : 'rgba(255,79,123,0.07)';
+    mc.fill();
+  }
+
+  drawGrid(mc, W, H, yMin, yMax);
+
+  // Draw f(x) line up to curX
+  mc.beginPath();
+  mc.strokeStyle = 'rgba(0,255,200,0.3)';
+  mc.lineWidth = 1.5;
+  let started = false;
+  for (let i = 0; i <= Math.min(animFrame, STEPS); i++) {
+    const x = xMin + (i / STEPS) * (xMax - xMin);
+    const y = polyEval(coeffs, x);
+    const [px, py] = worldToCanvas(x, y, W, H, yMin, yMax);
+    if (!started) { mc.moveTo(px, py); started = true; } else mc.lineTo(px, py);
+  }
+  mc.stroke();
+
+  // Full curve (faint)
+  mc.beginPath();
+  mc.strokeStyle = 'rgba(255,255,255,0.06)';
+  mc.lineWidth = 1;
+  for (let i = 0; i <= STEPS; i++) {
+    const x = xMin + (i / STEPS) * (xMax - xMin);
+    const y = polyEval(coeffs, x);
+    const [px, py] = worldToCanvas(x, y, W, H, yMin, yMax);
+    i === 0 ? mc.moveTo(px, py) : mc.lineTo(px, py);
+  }
+  mc.stroke();
+
+  // Draw colored curve (rising/falling) per segment up to cursor
+  for (let i = 0; i < Math.min(animFrame, STEPS); i++) {
+    const x0 = xMin + (i / STEPS) * (xMax - xMin);
+    const x1 = xMin + ((i + 1) / STEPS) * (xMax - xMin);
+    const dfx = polyEval(dCoeffs, (x0 + x1) / 2);
+    const [px0, py0] = worldToCanvas(x0, polyEval(coeffs, x0), W, H, yMin, yMax);
+    const [px1, py1] = worldToCanvas(x1, polyEval(coeffs, x1), W, H, yMin, yMax);
+    mc.beginPath();
+    mc.moveTo(px0, py0); mc.lineTo(px1, py1);
+    mc.strokeStyle = dfx > 0 ? 'rgba(0,255,200,0.9)' : 'rgba(255,79,123,0.9)';
+    mc.lineWidth = 2.5;
+    mc.stroke();
+  }
+
+  // Critical points (draw all, glow if past cursor)
+  critPoints.forEach(cp => {
+    const passed = cp.x <= curX;
+    const [px, py] = worldToCanvas(cp.x, cp.fx, W, H, yMin, yMax);
+    const color = cp.type === 'max' ? '#00ffc8' : cp.type === 'min' ? '#ff4f7b' : '#ffcc00';
+    if (passed) {
+      mc.shadowColor = color;
+      mc.shadowBlur = 14;
+    }
+    mc.beginPath();
+    mc.arc(px, py, passed ? 6 : 4, 0, Math.PI*2);
+    mc.fillStyle = passed ? color : 'rgba(255,255,255,0.15)';
+    mc.fill();
+    mc.strokeStyle = passed ? color : 'rgba(255,255,255,0.1)';
+    mc.lineWidth = 1.5;
+    mc.stroke();
+    mc.shadowBlur = 0;
+
+    if (passed) {
+      mc.font = 'bold 10px JetBrains Mono';
+      mc.fillStyle = color;
+      const label = cp.type === 'max' ? 'MAX' : cp.type === 'min' ? 'MIN' : 'INF';
+      mc.fillText(label, px + 8, py - 6);
+      mc.fillText(`(${cp.x.toFixed(2)}, ${cp.fx.toFixed(2)})`, px + 8, py + 8);
+    }
+  });
+
+  // Scan cursor
+  if (animFrame > 0 && animFrame < totalFrames) {
+    const [px] = worldToCanvas(curX, 0, W, H, yMin, yMax);
+    mc.strokeStyle = 'rgba(255,255,255,0.5)';
+    mc.lineWidth = 1;
+    mc.setLineDash([4, 4]);
+    mc.beginPath(); mc.moveTo(px, 0); mc.lineTo(px, H); mc.stroke();
+    mc.setLineDash([]);
+
+    // Current point dot
+    const curFx = polyEval(coeffs, curX);
+    const [cpx, cpy] = worldToCanvas(curX, curFx, W, H, yMin, yMax);
+    mc.beginPath();
+    mc.arc(cpx, cpy, 4, 0, Math.PI*2);
+    mc.fillStyle = '#fff';
+    mc.shadowColor = '#fff';
+    mc.shadowBlur = 10;
+    mc.fill();
+    mc.shadowBlur = 0;
+  }
+}
+
+function drawDeriv() {
+  const W = derivCanvas.width, H = derivCanvas.height;
+  dc.clearRect(0, 0, W, H);
+  if (!dCoeffs.length) return;
+
+  const STEPS = 800;
+  const curX = xMin + (animFrame / totalFrames) * (xMax - xMin);
+
+  drawGrid(dc, W, H, dyMin, dyMax);
+
+  // Zero line highlight
+  const [, zy] = worldToCanvas(0, 0, W, H, dyMin, dyMax);
+  dc.strokeStyle = 'rgba(255,204,0,0.3)';
+  dc.lineWidth = 1;
+  dc.setLineDash([6, 3]);
+  dc.beginPath(); dc.moveTo(0, zy); dc.lineTo(W, zy); dc.stroke();
+  dc.setLineDash([]);
+
+  // Draw full f′ faint
+  dc.beginPath();
+  dc.strokeStyle = 'rgba(123,108,255,0.15)';
+  dc.lineWidth = 1;
+  for (let i = 0; i <= STEPS; i++) {
+    const x = xMin + (i/STEPS)*(xMax-xMin);
+    const y = polyEval(dCoeffs, x);
+    const [px, py] = worldToCanvas(x, y, W, H, dyMin, dyMax);
+    i === 0 ? dc.moveTo(px, py) : dc.lineTo(px, py);
+  }
+  dc.stroke();
+
+  // Colored f′ up to cursor
+  for (let i = 0; i < Math.min(animFrame, STEPS); i++) {
+    const x0 = xMin + (i/STEPS)*(xMax-xMin);
+    const x1 = xMin + ((i+1)/STEPS)*(xMax-xMin);
+    const dfx = polyEval(dCoeffs, (x0+x1)/2);
+    const [px0, py0] = worldToCanvas(x0, polyEval(dCoeffs,x0), W, H, dyMin, dyMax);
+    const [px1, py1] = worldToCanvas(x1, polyEval(dCoeffs,x1), W, H, dyMin, dyMax);
+    dc.beginPath(); dc.moveTo(px0, py0); dc.lineTo(px1, py1);
+    dc.strokeStyle = dfx > 0 ? 'rgba(0,255,200,0.85)' : 'rgba(255,79,123,0.85)';
+    dc.lineWidth = 2;
+    dc.stroke();
+  }
+
+  // Critical point zero crossings on derivative
+  critPoints.forEach(cp => {
+    const passed = cp.x <= curX;
+    const [px, py] = worldToCanvas(cp.x, 0, W, H, dyMin, dyMax);
+    dc.beginPath(); dc.arc(px, py, passed ? 5 : 3, 0, Math.PI*2);
+    dc.fillStyle = passed ? '#ffcc00' : 'rgba(255,204,0,0.2)';
+    dc.shadowColor = passed ? '#ffcc00' : 'transparent';
+    dc.shadowBlur = passed ? 10 : 0;
+    dc.fill();
+    dc.shadowBlur = 0;
+    if (passed) {
+      dc.font = '9px JetBrains Mono';
+      dc.fillStyle = '#ffcc00';
+      dc.fillText(`x=${cp.x.toFixed(2)}`, px+6, py-6);
+    }
+  });
+
+  // Scan cursor on deriv
+  if (animFrame > 0 && animFrame < totalFrames) {
+    const [px] = worldToCanvas(curX, 0, W, H, dyMin, dyMax);
+    dc.strokeStyle = 'rgba(255,255,255,0.4)';
+    dc.lineWidth = 1;
+    dc.setLineDash([4,4]);
+    dc.beginPath(); dc.moveTo(px, 0); dc.lineTo(px, H); dc.stroke();
+    dc.setLineDash([]);
+    const curDfx = polyEval(dCoeffs, curX);
+    const [cpx, cpy] = worldToCanvas(curX, curDfx, W, H, dyMin, dyMax);
+    dc.beginPath(); dc.arc(cpx, cpy, 3, 0, Math.PI*2);
+    dc.fillStyle = '#7b6cff';
+    dc.shadowColor = '#7b6cff'; dc.shadowBlur = 8;
+    dc.fill(); dc.shadowBlur = 0;
+  }
+}
+
+// ─── Frame Variables ─────────────────────────────────────────────────────────
+
+function updateFrameVars() {
+  const curX = xMin + (animFrame / totalFrames) * (xMax - xMin);
+  const fx = polyEval(coeffs, curX);
+  const dfx = polyEval(dCoeffs, curX);
+  const ddfx = polyEval(ddCoeffs, curX);
+
+  document.getElementById('v-x').textContent = curX.toFixed(4);
+  document.getElementById('v-fx').textContent = fx.toFixed(4);
+  document.getElementById('v-dfx').textContent = dfx.toFixed(4);
+  document.getElementById('v-ddfx').textContent = ddfx.toFixed(4);
+
+  const bEl = document.getElementById('v-behavior');
+  if (Math.abs(dfx) < 0.01) {
+    bEl.textContent = 'CRITICAL POINT';
+    bEl.style.color = 'var(--crit)';
+  } else if (dfx > 0) {
+    bEl.textContent = 'RISING ↑';
+    bEl.style.color = 'var(--rising)';
+  } else {
+    bEl.textContent = 'FALLING ↓';
+    bEl.style.color = 'var(--falling)';
+  }
+
+  document.getElementById('frameNum').textContent = animFrame;
+  const pct = totalFrames ? (animFrame / totalFrames * 100).toFixed(1) : 0;
+  document.getElementById('progressFill').style.width = pct + '%';
+}
+
+// ─── Critical Points List ────────────────────────────────────────────────────
+
+function renderCritList() {
+  const el = document.getElementById('critList');
+  if (!critPoints.length) { el.innerHTML = '<div style="color:var(--muted);font-size:0.65rem">No critical points found</div>'; return; }
+  el.innerHTML = critPoints.map(cp => {
+    const typeLabel = cp.type === 'max' ? 'LOCAL MAX' : cp.type === 'min' ? 'LOCAL MIN' : 'INFLECTION';
+    return `<div class="crit-card ${cp.type}">
+      <div class="crit-badge">${typeLabel}</div>
+      <div class="crit-row"><span>x =</span><span>${cp.x.toFixed(4)}</span></div>
+      <div class="crit-row"><span>f(x) =</span><span>${cp.fx.toFixed(4)}</span></div>
+      <div class="crit-row"><span>f′(x) =</span><span>${Math.abs(cp.dfx) < 1e-6 ? '≈ 0' : cp.dfx.toFixed(4)}</span></div>
+      <div class="crit-row"><span>f″(x) =</span><span style="color:${cp.fxx < 0 ? 'var(--rising)' : cp.fxx > 0 ? 'var(--falling)' : 'var(--crit)'}">${cp.fxx.toFixed(4)}</span></div>
+      <div class="crit-row"><span>Concavity</span><span>${cp.fxx < -1e-6 ? 'Concave ∩ (max)' : cp.fxx > 1e-6 ? 'Concave ∪ (min)' : 'Linear'}</span></div>
+    </div>`;
+  }).join('');
+}
+
+// ─── Animation ───────────────────────────────────────────────────────────────
+
+function togglePlay() {
+  playing = !playing;
+  const btn = document.getElementById('playBtn');
+  if (playing) {
+    btn.textContent = '⏸ PAUSE';
+    btn.classList.add('playing');
+    if (animFrame >= totalFrames) animFrame = 0;
+    requestAnimationFrame(animate);
+  } else {
+    btn.textContent = '▶ PLAY';
+    btn.classList.remove('playing');
+    cancelAnimationFrame(rafId);
+  }
+}
+
+function animate(ts) {
+  if (!playing) return;
+  if (!lastTimestamp) lastTimestamp = ts;
+  accumTime += ts - lastTimestamp;
+  lastTimestamp = ts;
+
+  const msPerFrame = 1000 / (speed * 60 / 10); // speed * frames
+  const framesToAdvance = Math.floor(accumTime / (16 / speed));
+  if (framesToAdvance > 0) {
+    accumTime = 0;
+    animFrame = Math.min(animFrame + framesToAdvance, totalFrames);
+    drawAll();
+    updateFrameVars();
+    checkCritPassed();
+    if (animFrame >= totalFrames) {
+      playing = false;
+      document.getElementById('playBtn').textContent = '▶ PLAY';
+      document.getElementById('playBtn').classList.remove('playing');
+      pushLog(animFrame, 'Animation complete.');
+      return;
+    }
+  }
+
+  lastTimestamp = ts;
+  rafId = requestAnimationFrame(animate);
+}
+
+function stepFrame() {
+  if (animFrame < totalFrames) {
+    const skip = parseInt(document.getElementById('skipInput').value) || 1;
+    animFrame = Math.min(animFrame + skip, totalFrames);
+    drawAll();
+    updateFrameVars();
+    checkCritPassed();
+    pushLog(animFrame, frameDescription());
+  }
+}
+
+function frameDescription() {
+  const curX = xMin + (animFrame / totalFrames) * (xMax - xMin);
+  const dfx = polyEval(dCoeffs, curX);
+  if (Math.abs(dfx) < 0.05) return `Near critical point at x=${curX.toFixed(3)}`;
+  return dfx > 0 ? `Rising at x=${curX.toFixed(3)}, f′=${dfx.toFixed(3)}` : `Falling at x=${curX.toFixed(3)}, f′=${dfx.toFixed(3)}`;
+}
+
+let passedCrits = new Set();
+function checkCritPassed() {
+  const curX = xMin + (animFrame / totalFrames) * (xMax - xMin);
+  critPoints.forEach((cp, i) => {
+    if (!passedCrits.has(i) && cp.x <= curX) {
+      passedCrits.add(i);
+      const label = cp.type === 'max' ? 'LOCAL MAX' : cp.type === 'min' ? 'LOCAL MIN' : 'INFLECTION';
+      pushLog(animFrame, `${label} found at x=${cp.x.toFixed(3)}, f(x)=${cp.fx.toFixed(3)}, f″=${cp.fxx.toFixed(3)}`);
+    }
+  });
+}
+
+function resetAnim() {
+  playing = false;
+  cancelAnimationFrame(rafId);
+  lastTimestamp = 0;
+  accumTime = 0;
+  animFrame = 0;
+  passedCrits = new Set();
+  document.getElementById('playBtn').textContent = '▶ PLAY';
+  document.getElementById('playBtn').classList.remove('playing');
+  logEntries = [];
+  document.getElementById('stepLog').innerHTML = '';
+  if (coeffs.length) { drawAll(); updateFrameVars(); }
+}
+
+function updateSpeed() {
+  speed = parseInt(document.getElementById('speedSlider').value);
+  document.getElementById('speedVal').textContent = speed + 'x';
+}
+
+// ─── Log ─────────────────────────────────────────────────────────────────────
+
+function pushLog(frame, msg) {
+  logEntries.push({ frame, msg });
+  if (logEntries.length > 40) logEntries.shift();
+  const el = document.getElementById('stepLog');
+  el.innerHTML = logEntries.map((e, i) => 
+    `<div class="log-entry ${i === logEntries.length-1 ? 'active' : ''}">
+      <span class="log-frame">[${e.frame}]</span> ${e.msg}
+    </div>`
+  ).join('');
+  el.scrollTop = el.scrollHeight;
+}
+
+// ─── Init ────────────────────────────────────────────────────────────────────
+
+resize();
+randomize();
+</script>
+</body>
+</html>
