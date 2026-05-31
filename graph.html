@@ -555,12 +555,16 @@ window.addEventListener('resize', resize);
 function buildRandomCoeffs(deg) {
   let c = [];
   for (let i = 0; i <= deg; i++) {
-    let v = (Math.random() - 0.5) * 4;
-    if (i === 0) v = v < 0 ? v - 0.5 : v + 0.5;
+    // Higher degree terms get smaller magnitude to avoid blow-up at edges
+    // but inner coefficients get large values to create dramatic swings
+    const scale = i === 0 ? 0.8 : (i === 1 ? 6 : 8);
+    let v = (Math.random() - 0.5) * scale;
+    if (i === 0) {
+      // Leading coeff: small but nonzero to keep curve bounded
+      v = (Math.random() < 0.5 ? 1 : -1) * (0.3 + Math.random() * 0.5);
+    }
     c.push(parseFloat(v.toFixed(3)));
   }
-  const norm = Math.abs(c[0]);
-  if (norm > 2) c = c.map(v => parseFloat((v / norm).toFixed(3)));
   return c;
 }
 
@@ -620,12 +624,15 @@ function randomize() {
   ddCoeffs  = chosen.ddc;
   critPoints = chosen.cps;
 
-  // Compute y range
+  // Compute y range — tight fit so the graph fills the canvas dramatically
   const xs = Array.from({length: 800}, (_, i) => xMin + (i/799)*(xMax-xMin));
   const ys  = xs.map(x => polyEval(coeffs, x));
   const dys = xs.map(x => polyEval(dCoeffs, x));
-  const yPad  = (Math.max(...ys)  - Math.min(...ys))  * 0.2 || 2;
-  const dyPad = (Math.max(...dys) - Math.min(...dys)) * 0.2 || 2;
+  const ySpan  = Math.max(...ys)  - Math.min(...ys)  || 4;
+  const dySpan = Math.max(...dys) - Math.min(...dys) || 4;
+  // Only 8% padding so curve nearly fills canvas top-to-bottom
+  const yPad  = ySpan  * 0.08;
+  const dyPad = dySpan * 0.08;
   yMin  = Math.min(...ys)  - yPad;
   yMax  = Math.max(...ys)  + yPad;
   dyMin = Math.min(...dys) - dyPad;
