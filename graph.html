@@ -352,9 +352,21 @@
     </div>
 
     <div class="controls">
-      <button class="btn btn-accent" onclick="randomize()">⟳ RANDOMIZE</button>
+      <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+        <button class="btn btn-accent" onclick="randomize()">⟳ RANDOMIZE</button>
+        <div class="speed-wrap" style="background:rgba(0,255,200,0.05);border:1px solid rgba(0,255,200,0.2);border-radius:3px;padding:6px 10px">
+          <span style="color:var(--accent);font-size:0.6rem;letter-spacing:0.15em">CRITS</span>
+          <select id="critCount" style="background:var(--bg);border:1px solid var(--border);color:var(--accent);font-family:'JetBrains Mono',monospace;font-size:0.7rem;font-weight:700;outline:none;cursor:pointer;padding:2px 4px;border-radius:2px">
+            <option value="any">ANY</option>
+            <option value="1">= 1</option>
+            <option value="2">= 2</option>
+            <option value="3">= 3</option>
+          </select>
+        </div>
+      </div>
       <button class="btn btn-play" id="playBtn" onclick="togglePlay()">▶ PLAY</button>
       <button class="btn btn-step" onclick="stepFrame()">→ STEP</button>
+      <button class="btn" onclick="rewindFrame()" style="border-color:var(--accent4);color:var(--accent4)" title="Rewind by skip amount">← RWD</button>
       <div class="speed-wrap">
         <span>SKIP</span>
         <input type="number" id="skipInput" min="1" max="800" value="10" style="
@@ -540,59 +552,96 @@ window.addEventListener('resize', resize);
 
 // ─── Generate random polynomial ─────────────────────────────────────────────
 
+function buildRandomCoeffs(deg) {
+  let c = [];
+  for (let i = 0; i <= deg; i++) {
+    let v = (Math.random() - 0.5) * 4;
+    if (i === 0) v = v < 0 ? v - 0.5 : v + 0.5;
+    c.push(parseFloat(v.toFixed(3)));
+  }
+  const norm = Math.abs(c[0]);
+  if (norm > 2) c = c.map(v => parseFloat((v / norm).toFixed(3)));
+  return c;
+}
+
+function classifyPoints(c, dc, ddc) {
+  const cps = findCriticalPoints(dc, xMin, xMax);
+  cps.forEach(cp => {
+    cp.fx  = polyEval(c,   cp.x);
+    cp.dfx = polyEval(dc,  cp.x);
+    cp.fxx = polyEval(ddc, cp.x);
+    if (Math.abs(cp.fxx) < 1e-6) cp.type = 'inflection';
+    else cp.type = cp.fxx < 0 ? 'max' : 'min';
+  });
+  return cps;
+}
+
 function randomize() {
   resetAnim();
-  const deg = Math.floor(Math.random() * 3) + 3; // 3 to 5
-  coeffs = [];
-  for (let i = 0; i <= deg; i++) {
-    let c = (Math.random() - 0.5) * 4;
-    if (i === 0) c = c < 0 ? c - 0.5 : c + 0.5; // ensure non-trivial leading
-    coeffs.push(parseFloat(c.toFixed(3)));
-  }
-  // Normalize to avoid blow-up
-  const norm = Math.abs(coeffs[0]);
-  if (norm > 2) coeffs = coeffs.map(c => parseFloat((c / norm).toFixed(3)));
+  const targetCrits = document.getElementById('critCount').value;
+  const wantN = targetCrits === 'any' ? null : parseInt(targetCrits);
 
-  dCoeffs = polyDerive(coeffs);
-  ddCoeffs = polyDerive(dCoeffs);
+  let attempts = 0;
+  const maxAttempts = 300;
+  let chosen = null;
+
+  while (attempts < maxAttempts) {
+    attempts++;
+    let deg;
+    if (wantN === null) {
+      deg = Math.floor(Math.random() * 3) + 3; // 3-5
+    } else {
+      // n crits requires degree >= n+1; add 1 for wiggle room
+      deg = wantN + 1 + (Math.random() < 0.4 ? 1 : 0);
+    }
+    const c   = buildRandomCoeffs(deg);
+    const dc  = polyDerive(c);
+    const ddc = polyDerive(dc);
+    const cps = classifyPoints(c, dc, ddc);
+
+    if (wantN === null || cps.length === wantN) {
+      chosen = { c, dc, ddc, cps };
+      break;
+    }
+  }
+
+  // Fallback: use whatever last attempt gave us
+  if (!chosen) {
+    const deg = wantN ? wantN + 1 : 4;
+    const c   = buildRandomCoeffs(deg);
+    const dc  = polyDerive(c);
+    const ddc = polyDerive(dc);
+    const cps = classifyPoints(c, dc, ddc);
+    chosen = { c, dc, ddc, cps };
+  }
+
+  coeffs    = chosen.c;
+  dCoeffs   = chosen.dc;
+  ddCoeffs  = chosen.ddc;
+  critPoints = chosen.cps;
 
   // Compute y range
   const xs = Array.from({length: 800}, (_, i) => xMin + (i/799)*(xMax-xMin));
-  const ys = xs.map(x => polyEval(coeffs, x));
+  const ys  = xs.map(x => polyEval(coeffs, x));
   const dys = xs.map(x => polyEval(dCoeffs, x));
-  const yPad = (Math.max(...ys) - Math.min(...ys)) * 0.2 || 2;
+  const yPad  = (Math.max(...ys)  - Math.min(...ys))  * 0.2 || 2;
   const dyPad = (Math.max(...dys) - Math.min(...dys)) * 0.2 || 2;
-  yMin = Math.min(...ys) - yPad;
-  yMax = Math.max(...ys) + yPad;
+  yMin  = Math.min(...ys)  - yPad;
+  yMax  = Math.max(...ys)  + yPad;
   dyMin = Math.min(...dys) - dyPad;
   dyMax = Math.max(...dys) + dyPad;
-
-  critPoints = findCriticalPoints(dCoeffs, xMin, xMax);
-
-  // Classify critical points
-  critPoints.forEach(cp => {
-    const fxx = polyEval(ddCoeffs, cp.x);
-    const fx = polyEval(coeffs, cp.x);
-    const dfx = polyEval(dCoeffs, cp.x);
-    cp.fx = fx;
-    cp.dfx = dfx;
-    cp.fxx = fxx;
-    if (Math.abs(fxx) < 1e-6) cp.type = 'inflection';
-    else if (fxx < 0) cp.type = 'max';
-    else cp.type = 'min';
-  });
 
   totalFrames = 800;
   animFrame = 0;
 
-  document.getElementById('polyDisplay').textContent = 'f(x) = ' + polyToString(coeffs);
-  document.getElementById('derivDisplay').textContent = 'f′(x) = ' + polyToString(dCoeffs);
+  const critInfo = wantN ? ` (target:${wantN}, got:${critPoints.length})` : '';
+  document.getElementById('polyDisplay').textContent  = 'f(x) = '  + polyToString(coeffs);
+  document.getElementById('derivDisplay').textContent = "f’(x) = " + polyToString(dCoeffs);
   document.getElementById('frameTotal').textContent = totalFrames;
   renderCritList();
   resize();
-  pushLog(0, 'Graph generated. Degree: ' + (coeffs.length - 1));
+  pushLog(0, \`Graph generated. Deg:\${coeffs.length-1}, Crits:\${critPoints.length}\${critInfo}, Attempts:\${attempts}\`);
 }
-
 // ─── Rendering ──────────────────────────────────────────────────────────────
 
 function worldToCanvas(x, y, W, H, yMn, yMx) {
@@ -935,6 +984,14 @@ function stepFrame() {
     checkCritPassed();
     pushLog(animFrame, frameDescription());
   }
+}
+
+function rewindFrame() {
+  const skip = parseInt(document.getElementById('skipInput').value) || 1;
+  animFrame = Math.max(animFrame - skip, 0);
+  drawAll();
+  updateFrameVars();
+  pushLog(animFrame, 'Rewound ' + skip + ' frames → x=' + (xMin + (animFrame/totalFrames)*(xMax-xMin)).toFixed(3));
 }
 
 function frameDescription() {
