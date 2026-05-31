@@ -640,7 +640,7 @@ function randomize() {
   document.getElementById('frameTotal').textContent = totalFrames;
   renderCritList();
   resize();
-  pushLog(0, \`Graph generated. Deg:\${coeffs.length-1}, Crits:\${critPoints.length}\${critInfo}, Attempts:\${attempts}\`);
+  pushLog(0, 'Graph generated. Deg:' + (coeffs.length-1) + ', Crits:' + critPoints.length + critInfo + ', Attempts:' + attempts);
 }
 // ─── Rendering ──────────────────────────────────────────────────────────────
 
