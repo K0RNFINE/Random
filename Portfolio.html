@@ -1,0 +1,740 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Portfolio — KMITL AIT Applicant</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet" />
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --navy:    #0A1628;
+    --navy2:   #0F2040;
+    --cyan:    #00D4FF;
+    --cyan2:   #00A8CC;
+    --gold:    #FFD166;
+    --white:   #F8FAFC;
+    --grey:    #8899AA;
+    --muted:   #1E3050;
+    --card:    #132035;
+    --sidebar: 240px;
+  }
+
+  html, body { height: 100%; font-family: 'Inter', sans-serif; background: var(--navy); color: var(--white); }
+
+  /* ── Sidebar ── */
+  #sidebar {
+    position: fixed; top: 0; left: 0; height: 100vh; width: var(--sidebar);
+    background: var(--navy2); border-right: 1px solid rgba(0,212,255,.12);
+    display: flex; flex-direction: column; padding: 28px 0; z-index: 100;
+    overflow-y: auto;
+  }
+  .sb-logo {
+    padding: 0 22px 28px; border-bottom: 1px solid rgba(0,212,255,.1);
+    font-family: 'Space Grotesk', sans-serif; font-size: 13px; font-weight: 600;
+    letter-spacing: .06em; color: var(--cyan); text-transform: uppercase;
+  }
+  .sb-logo span { display: block; font-size: 10px; color: var(--grey); font-weight: 400; margin-top: 3px; letter-spacing: .1em; }
+  nav { flex: 1; padding-top: 18px; }
+  .nav-item {
+    display: flex; align-items: center; gap: 11px;
+    padding: 11px 22px; cursor: pointer; transition: all .2s;
+    font-size: 13px; font-weight: 500; color: var(--grey);
+    border-left: 3px solid transparent; user-select: none;
+  }
+  .nav-item:hover { color: var(--white); background: rgba(0,212,255,.05); }
+  .nav-item.active { color: var(--cyan); border-left-color: var(--cyan); background: rgba(0,212,255,.08); }
+  .nav-icon { font-size: 15px; width: 18px; text-align: center; flex-shrink: 0; }
+  .sb-footer { padding: 18px 22px; font-size: 11px; color: var(--grey); border-top: 1px solid rgba(0,212,255,.1); }
+
+  /* ── Main ── */
+  #main { margin-left: var(--sidebar); min-height: 100vh; padding: 0; overflow-x: hidden; }
+
+  /* ── Page fade ── */
+  .page { display: none; animation: fadeIn .4s ease; }
+  .page.active { display: block; }
+  @keyframes fadeIn { from { opacity:0; transform:translateY(12px); } to { opacity:1; transform:translateY(0); } }
+
+  /* ═══════════════════════════
+     PAGE 1 · COVER
+  ═══════════════════════════ */
+  #page-cover {
+    min-height: 100vh; position: relative;
+    display: flex; flex-direction: column; justify-content: center;
+    padding: 60px 70px; overflow: hidden;
+  }
+  #canvas-bg { position: absolute; inset: 0; z-index: 0; }
+  .cover-content { position: relative; z-index: 1; max-width: 680px; }
+  .cover-tag {
+    display: inline-block; font-size: 11px; letter-spacing: .15em; text-transform: uppercase;
+    color: var(--cyan); border: 1px solid rgba(0,212,255,.4); padding: 5px 14px;
+    border-radius: 2px; margin-bottom: 28px; font-weight: 600;
+  }
+  .cover-name {
+    font-family: 'Space Grotesk', sans-serif; font-size: clamp(42px, 6vw, 76px);
+    font-weight: 700; line-height: 1.05; letter-spacing: -.02em; margin-bottom: 8px;
+  }
+  .cover-name .highlight { color: var(--cyan); }
+  .cover-sub {
+    font-size: 16px; color: var(--grey); margin-bottom: 36px; font-weight: 400; line-height: 1.6;
+  }
+  .cover-badges { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 48px; }
+  .badge {
+    font-size: 12px; padding: 6px 16px; border-radius: 20px; font-weight: 500;
+    background: var(--muted); color: var(--white);
+  }
+  .badge.gold { background: rgba(255,209,102,.12); color: var(--gold); border: 1px solid rgba(255,209,102,.3); }
+  .badge.cyan { background: rgba(0,212,255,.1); color: var(--cyan); border: 1px solid rgba(0,212,255,.3); }
+  .cover-cta {
+    display: inline-flex; align-items: center; gap: 10px; padding: 14px 30px;
+    background: var(--cyan); color: var(--navy); font-weight: 700; font-size: 13px;
+    letter-spacing: .06em; text-transform: uppercase; cursor: pointer; border-radius: 3px;
+    border: none; transition: all .2s;
+  }
+  .cover-cta:hover { background: var(--cyan2); transform: translateY(-2px); }
+  .cover-scroll { position: absolute; bottom: 32px; left: 50%; transform: translateX(-50%); z-index: 1; text-align: center; color: var(--grey); font-size: 11px; letter-spacing: .1em; }
+  .scroll-line { width: 1px; height: 40px; background: linear-gradient(to bottom, var(--grey), transparent); margin: 8px auto 0; animation: scrollPulse 1.8s ease-in-out infinite; }
+  @keyframes scrollPulse { 0%,100%{opacity:.3} 50%{opacity:1} }
+  .cover-stat-row { display: flex; gap: 40px; margin-bottom: 40px; }
+  .cover-stat .num { font-family: 'Space Grotesk', sans-serif; font-size: 32px; font-weight: 700; color: var(--cyan); }
+  .cover-stat .lbl { font-size: 11px; color: var(--grey); text-transform: uppercase; letter-spacing: .1em; margin-top: 2px; }
+
+  /* ═══════════════════════════
+     SHARED SECTION STYLES
+  ═══════════════════════════ */
+  .section-wrap { max-width: 860px; margin: 0 auto; padding: 64px 60px; }
+  .page-header { margin-bottom: 48px; }
+  .page-eyebrow { font-size: 11px; letter-spacing: .15em; text-transform: uppercase; color: var(--cyan); font-weight: 600; margin-bottom: 10px; }
+  .page-title { font-family: 'Space Grotesk', sans-serif; font-size: 36px; font-weight: 700; letter-spacing: -.01em; margin-bottom: 12px; }
+  .page-desc { font-size: 14px; color: var(--grey); line-height: 1.7; max-width: 560px; }
+  .divider { height: 1px; background: rgba(0,212,255,.1); margin: 40px 0; }
+
+  /* Cards */
+  .card {
+    background: var(--card); border: 1px solid rgba(0,212,255,.1);
+    border-radius: 6px; padding: 28px 30px; margin-bottom: 18px;
+    transition: border-color .2s;
+  }
+  .card:hover { border-color: rgba(0,212,255,.3); }
+  .card-title { font-family: 'Space Grotesk', sans-serif; font-size: 16px; font-weight: 600; margin-bottom: 6px; }
+  .card-meta { font-size: 12px; color: var(--cyan); margin-bottom: 10px; font-weight: 500; }
+  .card-body { font-size: 13px; color: var(--grey); line-height: 1.7; }
+
+  /* Placeholder text */
+  .placeholder {
+    font-size: 13px; color: rgba(136,153,170,.5); font-style: italic;
+    border: 1px dashed rgba(0,212,255,.15); padding: 14px 18px; border-radius: 4px;
+  }
+
+  /* Tags */
+  .tag { display: inline-block; font-size: 11px; padding: 3px 10px; border-radius: 12px; background: var(--muted); color: var(--grey); margin: 3px; font-weight: 500; }
+  .tag.cyan { color: var(--cyan); background: rgba(0,212,255,.1); }
+  .tag.gold { color: var(--gold); background: rgba(255,209,102,.1); }
+
+  /* ═══════════════════════════
+     PAGE 2 · SOP
+  ═══════════════════════════ */
+  .sop-block { margin-bottom: 36px; }
+  .sop-q { font-family: 'Space Grotesk', sans-serif; font-size: 14px; font-weight: 600; color: var(--cyan); margin-bottom: 10px; padding-left: 14px; border-left: 3px solid var(--cyan); }
+  .sop-a { font-size: 14px; color: var(--grey); line-height: 1.8; }
+  .sop-word-count { font-size: 11px; color: var(--grey); text-align: right; margin-top: 6px; letter-spacing: .05em; }
+
+  /* ═══════════════════════════
+     PAGE 3 · PERSONAL INFO
+  ═══════════════════════════ */
+  .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .info-item { background: var(--card); border: 1px solid rgba(0,212,255,.08); border-radius: 5px; padding: 16px 20px; }
+  .info-label { font-size: 10px; color: var(--cyan); text-transform: uppercase; letter-spacing: .1em; font-weight: 600; margin-bottom: 5px; }
+  .info-value { font-size: 14px; color: var(--white); font-weight: 500; }
+  .info-value.placeholder-val { color: rgba(136,153,170,.45); font-style: italic; font-size: 13px; }
+  .photo-placeholder {
+    width: 140px; height: 140px; border-radius: 50%;
+    border: 2px dashed rgba(0,212,255,.3);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 11px; color: var(--grey); text-align: center; margin-bottom: 28px;
+    flex-shrink: 0; background: var(--muted);
+  }
+  .profile-header { display: flex; gap: 32px; align-items: flex-start; margin-bottom: 36px; flex-wrap: wrap; }
+
+  /* ═══════════════════════════
+     PAGE 4 · STUDY HISTORY (Timeline)
+  ═══════════════════════════ */
+  .timeline { position: relative; padding-left: 32px; }
+  .timeline::before { content:''; position:absolute; left:6px; top:0; bottom:0; width:2px; background: rgba(0,212,255,.2); }
+  .tl-item { position: relative; margin-bottom: 36px; }
+  .tl-dot { position: absolute; left: -32px; top: 4px; width: 14px; height: 14px; border-radius: 50%; background: var(--navy2); border: 2px solid var(--cyan); }
+  .tl-dot.filled { background: var(--cyan); }
+  .tl-year { font-size: 11px; color: var(--cyan); font-weight: 600; letter-spacing: .08em; margin-bottom: 5px; text-transform: uppercase; }
+  .tl-school { font-family: 'Space Grotesk', sans-serif; font-size: 16px; font-weight: 600; margin-bottom: 4px; }
+  .tl-level { font-size: 13px; color: var(--grey); margin-bottom: 8px; }
+  .tl-note { font-size: 12px; color: rgba(136,153,170,.7); line-height: 1.6; }
+
+  /* ═══════════════════════════
+     PAGE 5 · ปพ.1
+  ═══════════════════════════ */
+  .por1-intro { background: linear-gradient(135deg, rgba(0,212,255,.06), rgba(255,209,102,.04)); border: 1px solid rgba(0,212,255,.15); border-radius: 6px; padding: 20px 24px; margin-bottom: 28px; font-size: 13px; line-height: 1.7; color: var(--grey); }
+  .por1-table { width: 100%; border-collapse: collapse; font-size: 13px; margin-bottom: 24px; }
+  .por1-table th { background: var(--muted); color: var(--cyan); font-size: 11px; letter-spacing: .08em; text-transform: uppercase; padding: 10px 14px; text-align: left; font-weight: 600; border-bottom: 2px solid rgba(0,212,255,.2); }
+  .por1-table td { padding: 11px 14px; border-bottom: 1px solid rgba(0,212,255,.07); color: var(--grey); }
+  .por1-table tr:hover td { background: rgba(0,212,255,.04); }
+  .grade-chip { display: inline-block; padding: 2px 10px; border-radius: 10px; font-size: 11px; font-weight: 600; }
+  .grade-a { background: rgba(0,212,255,.15); color: var(--cyan); }
+  .grade-b { background: rgba(255,209,102,.12); color: var(--gold); }
+  .grade-c { background: rgba(255,100,100,.1); color: #FF7070; }
+
+  /* ═══════════════════════════
+     PAGE 6 · SUBJECT SUMMARY & GPAX
+  ═══════════════════════════ */
+  .gpax-hero {
+    display: flex; align-items: center; gap: 32px; background: var(--card);
+    border: 1px solid rgba(0,212,255,.15); border-radius: 8px; padding: 32px 36px; margin-bottom: 36px; flex-wrap: wrap;
+  }
+  .gpax-num { font-family: 'Space Grotesk', sans-serif; font-size: 72px; font-weight: 700; color: var(--cyan); line-height: 1; letter-spacing: -.04em; }
+  .gpax-label { font-size: 12px; color: var(--grey); text-transform: uppercase; letter-spacing: .12em; margin-top: 4px; }
+  .gpax-detail { font-size: 13px; color: var(--grey); line-height: 1.8; }
+  .gpax-detail strong { color: var(--white); }
+  .subject-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 14px; }
+  .subj-card { background: var(--card); border: 1px solid rgba(0,212,255,.1); border-radius: 6px; padding: 20px 22px; }
+  .subj-icon { font-size: 22px; margin-bottom: 10px; }
+  .subj-name { font-family: 'Space Grotesk', sans-serif; font-size: 14px; font-weight: 600; margin-bottom: 4px; }
+  .subj-avg { font-size: 12px; color: var(--cyan); font-weight: 600; margin-bottom: 8px; }
+  .progress-bar { height: 4px; background: var(--muted); border-radius: 2px; overflow: hidden; }
+  .progress-fill { height: 100%; border-radius: 2px; background: linear-gradient(90deg, var(--cyan), var(--cyan2)); }
+
+  /* ═══════════════════════════
+     PAGE 7 · EVENTS & CERTIFICATES
+  ═══════════════════════════ */
+  .cert-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 16px; }
+  .cert-card { background: var(--card); border: 1px solid rgba(0,212,255,.1); border-radius: 6px; padding: 22px 24px; }
+  .cert-icon { width: 42px; height: 42px; border-radius: 8px; background: rgba(0,212,255,.1); display: flex; align-items: center; justify-content: center; font-size: 20px; margin-bottom: 14px; }
+  .cert-title { font-family: 'Space Grotesk', sans-serif; font-size: 15px; font-weight: 600; margin-bottom: 5px; }
+  .cert-issuer { font-size: 12px; color: var(--cyan); font-weight: 500; margin-bottom: 6px; }
+  .cert-date { font-size: 11px; color: var(--grey); margin-bottom: 10px; }
+  .cert-desc { font-size: 12px; color: rgba(136,153,170,.8); line-height: 1.6; }
+
+  /* ── Responsive ── */
+  @media (max-width: 760px) {
+    :root { --sidebar: 0px; }
+    #sidebar { display: none; }
+    #main { margin-left: 0; }
+    .section-wrap { padding: 36px 22px; }
+    .info-grid { grid-template-columns: 1fr; }
+    #page-cover { padding: 50px 28px; }
+    .cover-stat-row { gap: 24px; }
+    .gpax-hero { flex-direction: column; gap: 16px; }
+    .gpax-num { font-size: 56px; }
+  }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar { width: 5px; }
+  ::-webkit-scrollbar-track { background: var(--navy); }
+  ::-webkit-scrollbar-thumb { background: var(--muted); border-radius: 3px; }
+</style>
+</head>
+<body>
+
+<!-- ═══ SIDEBAR ═══ -->
+<aside id="sidebar">
+  <div class="sb-logo">Portfolio<span>KMITL AIT Applicant</span></div>
+  <nav id="nav">
+    <div class="nav-item active" data-page="cover"><span class="nav-icon">🏠</span> Cover</div>
+    <div class="nav-item" data-page="sop"><span class="nav-icon">✍️</span> Statement of Purpose</div>
+    <div class="nav-item" data-page="personal"><span class="nav-icon">👤</span> Personal Info</div>
+    <div class="nav-item" data-page="history"><span class="nav-icon">🏫</span> Study History</div>
+    <div class="nav-item" data-page="por1"><span class="nav-icon">📋</span> ปพ.1 Transcript</div>
+    <div class="nav-item" data-page="subjects"><span class="nav-icon">📊</span> Subject Summary & GPAX</div>
+    <div class="nav-item" data-page="events"><span class="nav-icon">🏆</span> Events & Certificates</div>
+  </nav>
+  <div class="sb-footer">Applying for<br><strong style="color:var(--white);">KMITL · AIT Program</strong></div>
+</aside>
+
+<!-- ═══ MAIN ═══ -->
+<main id="main">
+
+  <!-- ── PAGE 1: COVER ── -->
+  <div class="page active" id="page-cover">
+    <canvas id="canvas-bg"></canvas>
+    <div class="cover-content">
+      <div class="cover-tag">🎓 University Admission Portfolio · 2025</div>
+      <div class="cover-name">
+        [Your<br><span class="highlight">Full Name]</span>
+      </div>
+      <div class="cover-sub">
+        Aspiring Engineer · KMITL AIT Applicant<br>
+        Passionate about [your field: e.g., Artificial Intelligence / Embedded Systems / IT]
+      </div>
+      <div class="cover-stat-row">
+        <div class="cover-stat">
+          <div class="num">X.XX</div>
+          <div class="lbl">GPAX</div>
+        </div>
+        <div class="cover-stat">
+          <div class="num">[XX]</div>
+          <div class="lbl">Certificates</div>
+        </div>
+        <div class="cover-stat">
+          <div class="num">[XX]</div>
+          <div class="lbl">Events / Activities</div>
+        </div>
+      </div>
+      <div class="cover-badges">
+        <span class="badge cyan">🏫 [Your School Name]</span>
+        <span class="badge gold">⭐ Science-Math Program</span>
+        <span class="badge">📍 [Province], Thailand</span>
+        <span class="badge">📅 Graduating [Year]</span>
+      </div>
+      <button class="cover-cta" onclick="setPage('sop')">View Portfolio →</button>
+    </div>
+    <div class="cover-scroll">SCROLL<div class="scroll-line"></div></div>
+  </div>
+
+  <!-- ── PAGE 2: SOP ── -->
+  <div class="page" id="page-sop">
+    <div class="section-wrap">
+      <div class="page-header">
+        <div class="page-eyebrow">02 — Statement of Purpose</div>
+        <div class="page-title">Why I Choose KMITL AIT</div>
+        <div class="page-desc">A personal essay describing my motivations, goals, and readiness for the AIT program at King Mongkut's Institute of Technology Ladkrabang.</div>
+      </div>
+
+      <div class="sop-block">
+        <div class="sop-q">Q1 · Who am I and where do I come from?</div>
+        <div class="sop-a placeholder">[Write 2–3 sentences about your background, school, and hometown. Example: "I am a Grade 12 student from [School], located in [Province]. Growing up surrounded by technology…"]</div>
+      </div>
+      <div class="sop-block">
+        <div class="sop-q">Q2 · What sparked my passion for technology / engineering?</div>
+        <div class="sop-a placeholder">[Describe a specific moment, project, or experience that made you want to pursue this field. Be specific and personal.]</div>
+      </div>
+      <div class="sop-block">
+        <div class="sop-q">Q3 · Why KMITL AIT specifically?</div>
+        <div class="sop-a placeholder">[Research KMITL AIT's curriculum, labs, faculty, or alumni. Explain why this program is the right fit for your goals. Mention specific courses or aspects you're excited about.]</div>
+      </div>
+      <div class="sop-block">
+        <div class="sop-q">Q4 · What are my academic strengths and relevant skills?</div>
+        <div class="sop-a placeholder">[Highlight your best subjects, extracurriculars, or self-taught skills related to your chosen major. Reference your GPAX, relevant scores, or project work.]</div>
+      </div>
+      <div class="sop-block">
+        <div class="sop-q">Q5 · What are my goals after graduation?</div>
+        <div class="sop-a placeholder">[Describe your 5–10 year vision. What kind of engineer/developer/researcher do you want to become? How does KMITL AIT help you get there?]</div>
+      </div>
+      <div class="divider"></div>
+      <div style="font-size:12px; color:var(--grey);">💡 Tip: A strong SOP is 400–600 words, specific rather than generic, and connects your past experiences to your future goals at KMITL AIT.</div>
+    </div>
+  </div>
+
+  <!-- ── PAGE 3: PERSONAL INFO ── -->
+  <div class="page" id="page-personal">
+    <div class="section-wrap">
+      <div class="page-header">
+        <div class="page-eyebrow">03 — Personal Information</div>
+        <div class="page-title">About Me</div>
+        <div class="page-desc">Basic personal details and contact information for the admissions review.</div>
+      </div>
+
+      <div class="profile-header">
+        <div class="photo-placeholder">📷<br><span style="font-size:10px;margin-top:4px;display:block">Photo<br>1.5" × 2"</span></div>
+        <div>
+          <div class="card-title" style="font-size:22px;margin-bottom:6px">[Full Thai Name]</div>
+          <div style="font-size:14px;color:var(--grey);margin-bottom:14px">[English Name] · [Nickname]</div>
+          <div class="cover-badges" style="margin-bottom:0">
+            <span class="badge cyan">AIT Major</span>
+            <span class="badge gold">Class of [Year]</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="info-grid">
+        <div class="info-item"><div class="info-label">Full Name (Thai)</div><div class="info-value placeholder-val">[ชื่อ-นามสกุล ภาษาไทย]</div></div>
+        <div class="info-item"><div class="info-label">Full Name (English)</div><div class="info-value placeholder-val">[First Name Last Name]</div></div>
+        <div class="info-item"><div class="info-label">Date of Birth</div><div class="info-value placeholder-val">DD / MM / YYYY</div></div>
+        <div class="info-item"><div class="info-label">Nationality</div><div class="info-value">Thai 🇹🇭</div></div>
+        <div class="info-item"><div class="info-label">Religion</div><div class="info-value placeholder-val">[Religion]</div></div>
+        <div class="info-item"><div class="info-label">Blood Type</div><div class="info-value placeholder-val">[A / B / AB / O]</div></div>
+        <div class="info-item"><div class="info-label">ID Number</div><div class="info-value placeholder-val">X XXXX XXXXX XX X</div></div>
+        <div class="info-item"><div class="info-label">Phone Number</div><div class="info-value placeholder-val">0XX-XXX-XXXX</div></div>
+        <div class="info-item"><div class="info-label">Email</div><div class="info-value placeholder-val">your@email.com</div></div>
+        <div class="info-item"><div class="info-label">Line ID</div><div class="info-value placeholder-val">@yourlineid</div></div>
+        <div class="info-item" style="grid-column:1/-1"><div class="info-label">Current Address</div><div class="info-value placeholder-val">[House No., Street, Sub-district, District, Province, Postal Code]</div></div>
+        <div class="info-item"><div class="info-label">Father's Name</div><div class="info-value placeholder-val">[Name] — [Occupation]</div></div>
+        <div class="info-item"><div class="info-label">Mother's Name</div><div class="info-value placeholder-val">[Name] — [Occupation]</div></div>
+        <div class="info-item" style="grid-column:1/-1"><div class="info-label">Hobbies & Interests</div><div class="info-value placeholder-val">[e.g., Programming, Robotics, Reading, Gaming, Music]</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── PAGE 4: STUDY HISTORY ── -->
+  <div class="page" id="page-history">
+    <div class="section-wrap">
+      <div class="page-header">
+        <div class="page-eyebrow">04 — Education History</div>
+        <div class="page-title">History of Study</div>
+        <div class="page-desc">A chronological record of my academic journey from primary school to present.</div>
+      </div>
+
+      <div class="timeline">
+        <div class="tl-item">
+          <div class="tl-dot filled"></div>
+          <div class="tl-year">20XX – Present (Grade 10–12)</div>
+          <div class="tl-school">[Secondary School Name]</div>
+          <div class="tl-level">Upper Secondary · Science-Math Program (Matthayom 4–6)</div>
+          <div class="tl-note">
+            <span class="tag cyan">GPAX: X.XX</span>
+            <span class="tag gold">Target: KMITL AIT</span><br><br>
+            [Optional: Notable activities, clubs, or programs at this school]
+          </div>
+        </div>
+        <div class="tl-item">
+          <div class="tl-dot filled"></div>
+          <div class="tl-year">20XX – 20XX (Grade 7–9)</div>
+          <div class="tl-school">[Lower Secondary School Name]</div>
+          <div class="tl-level">Lower Secondary · Matthayom 1–3</div>
+          <div class="tl-note">
+            <span class="tag">GPA: X.XX</span><br><br>
+            [Optional: Awards, activities, clubs]
+          </div>
+        </div>
+        <div class="tl-item">
+          <div class="tl-dot"></div>
+          <div class="tl-year">20XX – 20XX (Grade 1–6)</div>
+          <div class="tl-school">[Primary School Name]</div>
+          <div class="tl-level">Primary Education · Prathom 1–6</div>
+          <div class="tl-note">
+            <span class="tag">GPA: X.XX</span><br><br>
+            [Optional: Notable early achievements]
+          </div>
+        </div>
+        <div class="tl-item">
+          <div class="tl-dot"></div>
+          <div class="tl-year">20XX – 20XX</div>
+          <div class="tl-school">[Kindergarten / Preschool Name]</div>
+          <div class="tl-level">Pre-Primary Education</div>
+          <div class="tl-note">[Optional]</div>
+        </div>
+      </div>
+
+      <div class="divider"></div>
+
+      <div class="page-eyebrow" style="margin-bottom:16px">Additional Programs</div>
+      <div class="card">
+        <div class="card-title">Extra Courses & Tutoring</div>
+        <div class="card-body placeholder">[e.g., PAT preparation course, coding bootcamp, English tutoring, science olympiad preparation, etc.]</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── PAGE 5: ปพ.1 ── -->
+  <div class="page" id="page-por1">
+    <div class="section-wrap">
+      <div class="page-header">
+        <div class="page-eyebrow">05 — ปพ.1 Official Transcript</div>
+        <div class="page-title">Academic Transcript</div>
+        <div class="page-desc">Official grade records from the Ministry of Education format (ปพ.1) for each semester.</div>
+      </div>
+
+      <div class="por1-intro">
+        📄 This section mirrors the data from your official <strong>ปพ.1</strong> document. Enter grades semester by semester. The actual ปพ.1 document should be attached as a scan/PDF in the physical submission.
+      </div>
+
+      <div class="page-eyebrow" style="margin-bottom:14px">Matthayom 4 — Semester 1</div>
+      <table class="por1-table">
+        <thead><tr><th>Subject</th><th>Credits</th><th>Grade</th><th>Points</th></tr></thead>
+        <tbody>
+          <tr><td>Thai Language</td><td>1.0</td><td><span class="grade-chip grade-b">B+</span></td><td>—</td></tr>
+          <tr><td>Social Studies</td><td>1.0</td><td><span class="grade-chip grade-a">A</span></td><td>—</td></tr>
+          <tr><td>Mathematics (Additional)</td><td>1.5</td><td><span class="grade-chip grade-a">A</span></td><td>—</td></tr>
+          <tr><td>Physics</td><td>1.5</td><td><span class="grade-chip grade-b">B+</span></td><td>—</td></tr>
+          <tr><td>Chemistry</td><td>1.5</td><td><span class="grade-chip grade-a">A</span></td><td>—</td></tr>
+          <tr><td>English</td><td>1.0</td><td><span class="grade-chip grade-b">B+</span></td><td>—</td></tr>
+          <tr><td>Computer Science</td><td>1.0</td><td><span class="grade-chip grade-a">A</span></td><td>—</td></tr>
+          <tr style="color:var(--white);font-weight:600"><td>Semester GPA</td><td>—</td><td>—</td><td>X.XX</td></tr>
+        </tbody>
+      </table>
+
+      <div class="placeholder" style="margin-top:12px">[ Repeat table for each semester: M.4 S2 / M.5 S1 / M.5 S2 / M.6 S1 — add your actual data when ready ]</div>
+
+      <div class="divider"></div>
+
+      <div class="card">
+        <div class="card-title">Cumulative Summary</div>
+        <div class="card-meta">All semesters combined</div>
+        <div style="display:flex; gap:32px; flex-wrap:wrap; margin-top:4px">
+          <div><div class="info-label">Total Credits Earned</div><div class="info-value placeholder-val">XX.X credits</div></div>
+          <div><div class="info-label">Cumulative GPA (GPAX)</div><div class="info-value" style="color:var(--cyan); font-family:'Space Grotesk',sans-serif; font-size:22px; font-weight:700;">X.XX</div></div>
+          <div><div class="info-label">Grade Scale</div><div class="info-value placeholder-val">4.00 Scale</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── PAGE 6: SUBJECT SUMMARY & GPAX ── -->
+  <div class="page" id="page-subjects">
+    <div class="section-wrap">
+      <div class="page-header">
+        <div class="page-eyebrow">06 — Academic Performance</div>
+        <div class="page-title">Subject Summary & GPAX</div>
+        <div class="page-desc">A breakdown of my academic performance grouped by subject category, with overall GPAX and standardized test scores.</div>
+      </div>
+
+      <div class="gpax-hero">
+        <div>
+          <div class="gpax-num" id="gpax-display">X.XX</div>
+          <div class="gpax-label">GPAX · Cumulative GPA</div>
+        </div>
+        <div class="gpax-detail">
+          <strong>Overall Academic Performance</strong><br>
+          Semester credits completed: <strong>[XX] credits</strong><br>
+          Semesters recorded: <strong>[X of 6]</strong><br>
+          Strongest subject: <strong>[Subject Name]</strong><br>
+          Target admission score: <strong>GPAX ≥ 2.50 (AIT requirement)</strong>
+        </div>
+      </div>
+
+      <div class="page-eyebrow" style="margin-bottom:18px">Performance by Category</div>
+      <div class="subject-grid">
+        <div class="subj-card">
+          <div class="subj-icon">🔬</div>
+          <div class="subj-name">Science</div>
+          <div class="subj-avg">Avg: X.XX / 4.00</div>
+          <div class="placeholder" style="font-size:11px;padding:8px 10px">Physics · Chemistry · Biology</div>
+          <div class="progress-bar" style="margin-top:12px"><div class="progress-fill" style="width:80%"></div></div>
+        </div>
+        <div class="subj-card">
+          <div class="subj-icon">📐</div>
+          <div class="subj-name">Mathematics</div>
+          <div class="subj-avg">Avg: X.XX / 4.00</div>
+          <div class="placeholder" style="font-size:11px;padding:8px 10px">Calculus · Statistics · Additional Math</div>
+          <div class="progress-bar" style="margin-top:12px"><div class="progress-fill" style="width:75%"></div></div>
+        </div>
+        <div class="subj-card">
+          <div class="subj-icon">🌐</div>
+          <div class="subj-name">English Language</div>
+          <div class="subj-avg">Avg: X.XX / 4.00</div>
+          <div class="placeholder" style="font-size:11px;padding:8px 10px">English 1–4 · Additional English</div>
+          <div class="progress-bar" style="margin-top:12px"><div class="progress-fill" style="width:70%"></div></div>
+        </div>
+        <div class="subj-card">
+          <div class="subj-icon">🗣️</div>
+          <div class="subj-name">Thai Language</div>
+          <div class="subj-avg">Avg: X.XX / 4.00</div>
+          <div class="placeholder" style="font-size:11px;padding:8px 10px">Thai 1–4 · Literature</div>
+          <div class="progress-bar" style="margin-top:12px"><div class="progress-fill" style="width:65%"></div></div>
+        </div>
+        <div class="subj-card">
+          <div class="subj-icon">🌍</div>
+          <div class="subj-name">Social Studies</div>
+          <div class="subj-avg">Avg: X.XX / 4.00</div>
+          <div class="placeholder" style="font-size:11px;padding:8px 10px">History · Geography · Civics</div>
+          <div class="progress-bar" style="margin-top:12px"><div class="progress-fill" style="width:60%"></div></div>
+        </div>
+        <div class="subj-card">
+          <div class="subj-icon">💻</div>
+          <div class="subj-name">Computer / Technology</div>
+          <div class="subj-avg">Avg: X.XX / 4.00</div>
+          <div class="placeholder" style="font-size:11px;padding:8px 10px">Computer Science · ICT</div>
+          <div class="progress-bar" style="margin-top:12px"><div class="progress-fill" style="width:90%"></div></div>
+        </div>
+        <div class="subj-card">
+          <div class="subj-icon">🎨</div>
+          <div class="subj-name">Arts & Health</div>
+          <div class="subj-avg">Avg: X.XX / 4.00</div>
+          <div class="placeholder" style="font-size:11px;padding:8px 10px">Physical Education · Arts</div>
+          <div class="progress-bar" style="margin-top:12px"><div class="progress-fill" style="width:55%"></div></div>
+        </div>
+        <div class="subj-card">
+          <div class="subj-icon">🧭</div>
+          <div class="subj-name">Career & Life Skills</div>
+          <div class="subj-avg">Avg: X.XX / 4.00</div>
+          <div class="placeholder" style="font-size:11px;padding:8px 10px">Guidance · Occupational Studies</div>
+          <div class="progress-bar" style="margin-top:12px"><div class="progress-fill" style="width:62%"></div></div>
+        </div>
+      </div>
+
+      <div class="divider"></div>
+
+      <div class="page-eyebrow" style="margin-bottom:16px">Standardized Test Scores</div>
+      <div class="info-grid">
+        <div class="info-item"><div class="info-label">TGAT (Thai General Aptitude Test)</div><div class="info-value placeholder-val">[Score] / 300</div></div>
+        <div class="info-item"><div class="info-label">TPAT-3 (Science & Technology)</div><div class="info-value placeholder-val">[Score] / 100</div></div>
+        <div class="info-item"><div class="info-label">A-Level Mathematics 1</div><div class="info-value placeholder-val">[Score] / 100</div></div>
+        <div class="info-item"><div class="info-label">A-Level Physics</div><div class="info-value placeholder-val">[Score] / 100</div></div>
+        <div class="info-item"><div class="info-label">A-Level Chemistry</div><div class="info-value placeholder-val">[Score] / 100</div></div>
+        <div class="info-item"><div class="info-label">English Proficiency (if any)</div><div class="info-value placeholder-val">[IELTS / TOEFL / CU-TEP Score]</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── PAGE 7: EVENTS & CERTIFICATES ── -->
+  <div class="page" id="page-events">
+    <div class="section-wrap">
+      <div class="page-header">
+        <div class="page-eyebrow">07 — Achievements</div>
+        <div class="page-title">Events & Certificates</div>
+        <div class="page-desc">Competitions, workshops, volunteer activities, and certificates earned throughout my academic life.</div>
+      </div>
+
+      <div class="page-eyebrow" style="margin-bottom:14px">🏆 Competitions & Awards</div>
+      <div class="cert-grid" style="margin-bottom:36px">
+        <div class="cert-card">
+          <div class="cert-icon">🥇</div>
+          <div class="cert-title">[Competition Name]</div>
+          <div class="cert-issuer">[Organizing Body] · [Level: School / Regional / National]</div>
+          <div class="cert-date">📅 [Month, Year]</div>
+          <div class="cert-desc placeholder">[Award received, e.g., 1st Place, Gold Medal, Honorable Mention]</div>
+        </div>
+        <div class="cert-card">
+          <div class="cert-icon">🥈</div>
+          <div class="cert-title">[Competition Name]</div>
+          <div class="cert-issuer">[Organizing Body] · [Level]</div>
+          <div class="cert-date">📅 [Month, Year]</div>
+          <div class="cert-desc placeholder">[Award / result]</div>
+        </div>
+        <div class="cert-card">
+          <div class="cert-icon">🤖</div>
+          <div class="cert-title">[Science / Tech Competition]</div>
+          <div class="cert-issuer">[Organizing Body]</div>
+          <div class="cert-date">📅 [Month, Year]</div>
+          <div class="cert-desc placeholder">[Add as many as needed]</div>
+        </div>
+      </div>
+
+      <div class="page-eyebrow" style="margin-bottom:14px">📜 Certificates & Training</div>
+      <div class="cert-grid" style="margin-bottom:36px">
+        <div class="cert-card">
+          <div class="cert-icon">💻</div>
+          <div class="cert-title">[Course / Certification Name]</div>
+          <div class="cert-issuer">[Platform: Coursera / edX / KMITL / Other]</div>
+          <div class="cert-date">📅 [Month, Year] · [XX hours]</div>
+          <div class="cert-desc placeholder">[Brief description of what you learned]</div>
+        </div>
+        <div class="cert-card">
+          <div class="cert-icon">🌐</div>
+          <div class="cert-title">[English / Language Certificate]</div>
+          <div class="cert-issuer">[e.g., Cambridge, British Council, CEFR Level]</div>
+          <div class="cert-date">📅 [Month, Year]</div>
+          <div class="cert-desc placeholder">[Score or level achieved]</div>
+        </div>
+        <div class="cert-card">
+          <div class="cert-icon">📡</div>
+          <div class="cert-title">[Workshop / Camp Name]</div>
+          <div class="cert-issuer">[e.g., KMITL Open House, POSN, IPST]</div>
+          <div class="cert-date">📅 [Month, Year]</div>
+          <div class="cert-desc placeholder">[What you did / learned]</div>
+        </div>
+      </div>
+
+      <div class="page-eyebrow" style="margin-bottom:14px">🌱 Volunteer & Extracurricular Activities</div>
+      <div class="card">
+        <div class="card-title">[Club / Student Council / Volunteer Activity]</div>
+        <div class="card-meta">[Role] · [Duration, e.g., 2022–2024]</div>
+        <div class="card-body placeholder">[Describe your role and what you contributed. Skills gained: leadership, teamwork, communication, etc.]</div>
+      </div>
+      <div class="card">
+        <div class="card-title">[Another Activity]</div>
+        <div class="card-meta">[Role] · [Duration]</div>
+        <div class="card-body placeholder">[Description]</div>
+      </div>
+
+      <div class="divider"></div>
+      <div class="card" style="border-color:rgba(255,209,102,.2);background:rgba(255,209,102,.04)">
+        <div class="card-title" style="color:var(--gold)">📌 Document Checklist</div>
+        <div class="card-body" style="margin-top:10px">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:13px;color:var(--grey)">
+            <div>☐ ปพ.1 Official Transcript (scan)</div>
+            <div>☐ National ID copy</div>
+            <div>☐ House registration copy</div>
+            <div>☐ 1.5×2" photo (6 copies)</div>
+            <div>☐ Certificates (originals + copies)</div>
+            <div>☐ Portfolio (this document)</div>
+            <div>☐ TGAT / TPAT score report</div>
+            <div>☐ SOP signed by applicant</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</main>
+
+<script>
+/* ═══ NAVIGATION INJECTION ═══ */
+const pages = {
+  cover:    'page-cover',
+  sop:      'page-sop',
+  personal: 'page-personal',
+  history:  'page-history',
+  por1:     'page-por1',
+  subjects: 'page-subjects',
+  events:   'page-events',
+};
+
+function setPage(key) {
+  // Hide all pages
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  // Show target
+  const target = document.getElementById(pages[key]);
+  if (target) { target.classList.add('active'); window.scrollTo(0,0); }
+  // Update nav
+  document.querySelectorAll('.nav-item').forEach(n => {
+    n.classList.toggle('active', n.dataset.page === key);
+  });
+}
+
+document.querySelectorAll('.nav-item').forEach(item => {
+  item.addEventListener('click', () => setPage(item.dataset.page));
+});
+
+/* ═══ CANVAS PARTICLE ANIMATION ═══ */
+const canvas = document.getElementById('canvas-bg');
+const ctx    = canvas.getContext('2d');
+
+function resize() {
+  canvas.width  = canvas.offsetWidth;
+  canvas.height = canvas.offsetHeight;
+}
+resize();
+window.addEventListener('resize', resize);
+
+const NODES = 60;
+const nodes = Array.from({length: NODES}, () => ({
+  x: Math.random() * canvas.width,
+  y: Math.random() * canvas.height,
+  vx: (Math.random() - .5) * .4,
+  vy: (Math.random() - .5) * .4,
+  r: Math.random() * 2 + 1,
+}));
+
+function draw() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  // Connections
+  for (let i = 0; i < nodes.length; i++) {
+    for (let j = i+1; j < nodes.length; j++) {
+      const dx = nodes[i].x - nodes[j].x, dy = nodes[i].y - nodes[j].y;
+      const dist = Math.sqrt(dx*dx + dy*dy);
+      if (dist < 130) {
+        ctx.beginPath();
+        ctx.moveTo(nodes[i].x, nodes[i].y);
+        ctx.lineTo(nodes[j].x, nodes[j].y);
+        ctx.strokeStyle = `rgba(0,212,255,${.08 * (1 - dist/130)})`;
+        ctx.lineWidth = .7;
+        ctx.stroke();
+      }
+    }
+  }
+  // Nodes
+  nodes.forEach(n => {
+    ctx.beginPath();
+    ctx.arc(n.x, n.y, n.r, 0, Math.PI*2);
+    ctx.fillStyle = 'rgba(0,212,255,.35)';
+    ctx.fill();
+    // Move
+    n.x += n.vx; n.y += n.vy;
+    if (n.x < 0 || n.x > canvas.width)  n.vx *= -1;
+    if (n.y < 0 || n.y > canvas.height) n.vy *= -1;
+  });
+  requestAnimationFrame(draw);
+}
+draw();
+</script>
+</body>
+</html>
